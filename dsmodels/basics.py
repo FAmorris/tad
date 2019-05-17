@@ -217,3 +217,67 @@ class FireModel(SecurityModel):
 
 	def get_info(self, title='fire reports', width=80, v_width=40):
 		return super().get_info(title=title, width=width, v_width=v_width)
+		
+
+class GasDiffusion(SecurityModel):
+	
+	def __init__(self, material, mat_params, env_params):
+		super().__init__(material=material, mat_params=mat_params, env_params=env_params)
+	
+	def calc_declination(self):
+		from datetime import datetime
+		import math
+		
+		day = datetime.now().timetuple().tm_yday
+
+		if 366 == day: day = 365
+		theta = 360 * day / 365
+		
+		declination = (0.006918 - 0.399912 * math.cos(theta) + 0.070257 * math.sin(theta)\
+						- 0.006758 * math.cos(2 * theta) + 0.000907 * math.sin(2 * theta)\
+						- 0.002697 * math.cos(3 * theta) + 0.00148 * math.sin(3 * theta)) * (180 / math.pi)
+		
+		return declination
+		
+	def calc_solar_angle(self, longtitude, latitude):
+		from datetime import datetime
+		import math
+		
+		declination = self.calc_declination()
+		
+		solar_angle = math.arcsin(math.sin(latitude) * declination\
+						+ math.cos(latitude) * math.cos(declination)\
+						* (15 * datetime.now().hour + longtitude - 300))
+		
+		return solar_angle
+		
+	def calc_solar_radiation_level(self):
+		
+		
+		
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
