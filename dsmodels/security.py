@@ -6,417 +6,417 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from basics import ExplosionModel, FireModel
 
 class SteamCloudExplosion(ExplosionModel):
-    """
-    蒸汽云爆炸模型，可以用于计算蒸汽云质量、蒸汽云爆破能、蒸汽云爆炸 TNT 当量转换、
-    蒸汽云冲击波超压计算、蒸汽云冲击波超压距离半径计算。
-    """
-    
-    def __init__(self, material, mat_params, env_params):
-        """
-        构造函数。
-        
-        Parameters:
-            material   - 燃烧物质名称。
-            mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下 key - value
-            
-                'material_volume'  - 蒸汽云的体积，单位：m^3。
-                'material_density' - 蒸汽云的密度，单位：kg/m^3。
-                         
-            env_params - pandas Series 对象，环境参数。可包含以下键值对
-            
-                'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。若指定该参数，
-                                         则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
-                                         1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。 
-        Returns:
-            None
-        
-        Raises:
-            None
-        """
-        
-        super().__init__(material=material, mat_params=mat_params, env_params=env_params)
-    
-    def calc_material_weight(self):
-        """
-        方法用于计算蒸汽云对应的质量，构造函数中的 'mat_params' 
-        参数需要包含以下键值对
-            'material_volume'  - 蒸汽云的体积，单位：m^3。
-            'material_density' - 蒸汽云的密度，单位：kg/m^3。
-            
-        Parameters:
-            None
-        
-        Returns:
-            蒸汽云对应的质量，单位：kg。
-        
-        Raises:
-        
-        """
-        
-        mat_params = self.get_material_params()
-        mat_volume = mat_params['material_volume']
-        mat_density = mat_params['material_density']
-        
-        assert mat_volume, self.assert_info('material_volume')
-        assert mat_density, self.assert_info('material_density')
-        
-        mat_weight = mat_volume * mat_density
-        self._add_result('material_weight(kg)', mat_weight)
-        
-        return mat_weight
-    
-    def calc_explosive_energy(self, alpha=0.04, beta=1.8):
-        """
-        方法用于计算蒸汽云爆炸产生的爆破能。构造函数中的 'mat_params' 参数需要包含以下 key - value
-        
-            'material_volume'  - 蒸汽云的体积，单位：m^3。
-            'material_density' - 蒸汽云的密度，单位：kg/m^3。
-            'combustion_heat'  - 蒸汽云对应物质的燃烧热，单位：kJ/m^3。
-        
-        Parameters:
-            alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
-            beta  - 地面爆炸系数，默认 beta=1.8。
-        
-        Returns:
-            蒸汽云爆炸产生的爆破能。单位：kJ。
-        
-        Raises:
-        
-        Notes:
-            如果在构造函数的 'env_params' 参数中直接指定以下 key - value
-            
-                'material_weight' - 蒸汽云对应的物质质量，单位：kg。
-                
-            则可以省略以下 key
-            
-                'material_volume'  - 蒸汽云的体积，单位：m^3。
-                'material_density' - 蒸汽云的密度，单位：kg/m^3。
-        """
-        
-        mat_params = self.get_material_params()
-        combustion_heat = mat_params['combustion_heat']
-        
-        assert combustion_heat, self.assert_info('combustion_heat')
-        
-        if 'material_weight' in mat_params.index:
-            mat_weight = mat_params['material_weight']
-        else:
-            mat_weight = self.calc_material_weight()
-        
-        explosive_energy = alpha * beta * combustion_heat * mat_weight
-        self._add_result('explosive_energy(kJ)', explosive_energy)
-        self._add_environment_param('alpha', alpha)
-        self._add_environment_param('beta', beta)
-        
-        return explosive_energy
-    
-    def calc_turn_tnt(self, alpha=0.04, beta=1.8):
-        """
-        方法用于计算蒸汽云爆炸时的 TNT 当量。
-        
-        Parameters:
-            alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
-            beta  - 地面爆炸系数，默认 beta=1.8。
-            
-        Returns:
-            蒸汽云爆炸时的 TNT 当量，单位：kg。
-            
-        Raise:
-        
-        Notes:
-            如果构造函数的参数 'env_params' 中包含以下 key - value
-                'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。
+	"""
+	蒸汽云爆炸模型，可以用于计算蒸汽云质量、蒸汽云爆破能、蒸汽云爆炸 TNT 当量转换、
+	蒸汽云冲击波超压计算、蒸汽云冲击波超压距离半径计算。
+	"""
 
-            则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
-            1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。
-        """
-        
-        env_params = self.get_environment_params()
-        
-        if 'tnt_explosive_energy' in env_params.index:
-            tnt_explosive_energy = env_params['tnt_explosive_energy']
-        else:
-            tnt_explosive_energy = 4500
-        
-        explosive_energy = self.calc_explosive_energy(alpha, beta)
-        tnt_weight = explosive_energy / tnt_explosive_energy
-        self._add_result('tnt_weight(kg)', tnt_weight)
-        
-        return tnt_weight
-    
-    def calc_wave_overpressure(self, x, alpha=0.04, beta=1.8):
-        """
-        方法用于计算泄漏物质发生蒸汽云爆炸时距离爆炸中心 x 米处的冲击波超压。
-        
-        Parameters:
-            x     - 某位置到爆炸中心的距离，单位：m。
-            alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
-            beta  - 地面爆炸系数，默认 beta=1.8。
-            
-        Returns:
-            距离爆炸中心 x 米处的冲击波超压，单位：m。
-            
-        Raises:
-            'ZeroDivisionError' - 除数为 0 异常。
-        """
-        
-        import math
-        
-        tnt_weight = self.calc_turn_tnt(alpha, beta)
-        relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
-        wave_overpressure = self.tnt_overpressure_of(relative_dis)
-        if wave_overpressure < 0: wave_overpressure = 0.0
-        self._add_environment_param('relative_distance(x)', relative_dis)
-        self._add_result('distance: ({x})'.format(x=x), wave_overpressure)
-        
-        return wave_overpressure
-    
-    def calc_wave_radius(self, p, alpha=0.04, beta=1.8):
-        """
-        方法用于计算泄漏物质发生蒸汽云爆炸时 p Mpa 冲击波超压对应的冲击波半径。
-        
-        Parameters:
-            p     - 冲击波超压，单位：Mpa。
-            alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
-            beta  - 地面爆炸系数，默认 beta=1.8。
-            
-        Returns:
-            p Mpa 冲击波超压对应的冲击波半径。
-        
-        Raises:
-            
-        """
-        
-        import math
-        
-        tnt_weight = self.calc_turn_tnt(alpha, beta)
-        relative_dis = self.tnt_distance_of(p)
-        wave_radius = 0.1 * math.pow(tnt_weight, 1 / 3) * relative_dis
-        if wave_radius < 0: wave_radius = 0.0
-        self._add_result('overpressure:({p})'.format(p=p), wave_radius)
-        self._add_environment_param('relative_distance(p)', relative_dis)
-        return wave_radius
-    
-    def fit(self): pass
-    
-    def plot(self): pass
-    
-    def get_info(self):
-        return super().get_info('steam cloud explosion model reports', width=80, v_width=40)
-    
+	def __init__(self, material, mat_params, env_params):
+		"""
+		构造函数。
+		
+		Parameters:
+			material   - 燃烧物质名称。
+			mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下 key - value
+			
+				'material_volume'  - 蒸汽云的体积，单位：m^3。
+				'material_density' - 蒸汽云的密度，单位：kg/m^3。
+						 
+			env_params - pandas Series 对象，环境参数。可包含以下键值对
+			
+				'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。若指定该参数，
+										 则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
+										 1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。 
+		Returns:
+			None
+		
+		Raises:
+			None
+		"""
+		
+		super().__init__(material=material, mat_params=mat_params, env_params=env_params)
+
+	def calc_material_weight(self):
+		"""
+		方法用于计算蒸汽云对应的质量，构造函数中的 'mat_params' 
+		参数需要包含以下键值对
+			'material_volume'  - 蒸汽云的体积，单位：m^3。
+			'material_density' - 蒸汽云的密度，单位：kg/m^3。
+			
+		Parameters:
+			None
+		
+		Returns:
+			蒸汽云对应的质量，单位：kg。
+		
+		Raises:
+		
+		"""
+		
+		mat_params = self.get_material_params()
+		mat_volume = mat_params['material_volume']
+		mat_density = mat_params['material_density']
+		
+		assert mat_volume, self.assert_info('material_volume')
+		assert mat_density, self.assert_info('material_density')
+		
+		mat_weight = mat_volume * mat_density
+		self._add_result('material_weight(kg)', mat_weight)
+		
+		return mat_weight
+
+	def calc_explosive_energy(self, alpha=0.04, beta=1.8):
+		"""
+		方法用于计算蒸汽云爆炸产生的爆破能。构造函数中的 'mat_params' 参数需要包含以下 key - value
+		
+			'material_volume'  - 蒸汽云的体积，单位：m^3。
+			'material_density' - 蒸汽云的密度，单位：kg/m^3。
+			'combustion_heat'  - 蒸汽云对应物质的燃烧热，单位：kJ/m^3。
+		
+		Parameters:
+			alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
+			beta  - 地面爆炸系数，默认 beta=1.8。
+		
+		Returns:
+			蒸汽云爆炸产生的爆破能。单位：kJ。
+		
+		Raises:
+		
+		Notes:
+			如果在构造函数的 'env_params' 参数中直接指定以下 key - value
+			
+				'material_weight' - 蒸汽云对应的物质质量，单位：kg。
+				
+			则可以省略以下 key
+			
+				'material_volume'  - 蒸汽云的体积，单位：m^3。
+				'material_density' - 蒸汽云的密度，单位：kg/m^3。
+		"""
+		
+		mat_params = self.get_material_params()
+		combustion_heat = mat_params['combustion_heat']
+		
+		assert combustion_heat, self.assert_info('combustion_heat')
+		
+		if 'material_weight' in mat_params.index:
+			mat_weight = mat_params['material_weight']
+		else:
+			mat_weight = self.calc_material_weight()
+		
+		explosive_energy = alpha * beta * combustion_heat * mat_weight
+		self._add_result('explosive_energy(kJ)', explosive_energy)
+		self._add_environment_param('alpha', alpha)
+		self._add_environment_param('beta', beta)
+		
+		return explosive_energy
+
+	def calc_turn_tnt(self, alpha=0.04, beta=1.8):
+		"""
+		方法用于计算蒸汽云爆炸时的 TNT 当量。
+		
+		Parameters:
+			alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
+			beta  - 地面爆炸系数，默认 beta=1.8。
+			
+		Returns:
+			蒸汽云爆炸时的 TNT 当量，单位：kg。
+			
+		Raise:
+		
+		Notes:
+			如果构造函数的参数 'env_params' 中包含以下 key - value
+				'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。
+
+			则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
+			1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。
+		"""
+		
+		env_params = self.get_environment_params()
+		
+		if 'tnt_explosive_energy' in env_params.index:
+			tnt_explosive_energy = env_params['tnt_explosive_energy']
+		else:
+			tnt_explosive_energy = 4500
+		
+		explosive_energy = self.calc_explosive_energy(alpha, beta)
+		tnt_weight = explosive_energy / tnt_explosive_energy
+		self._add_result('tnt_weight(kg)', tnt_weight)
+		
+		return tnt_weight
+
+	def calc_wave_overpressure(self, x, alpha=0.04, beta=1.8):
+		"""
+		方法用于计算泄漏物质发生蒸汽云爆炸时距离爆炸中心 x 米处的冲击波超压。
+		
+		Parameters:
+			x     - 某位置到爆炸中心的距离，单位：m。
+			alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
+			beta  - 地面爆炸系数，默认 beta=1.8。
+			
+		Returns:
+			距离爆炸中心 x 米处的冲击波超压，单位：m。
+			
+		Raises:
+			'ZeroDivisionError' - 除数为 0 异常。
+		"""
+		
+		import math
+		
+		tnt_weight = self.calc_turn_tnt(alpha, beta)
+		relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
+		wave_overpressure = self.tnt_overpressure_of(relative_dis)
+		if wave_overpressure < 0: wave_overpressure = 0.0
+		self._add_environment_param('relative_distance(x)', relative_dis)
+		self._add_result('distance: ({x})'.format(x=x), wave_overpressure)
+		
+		return wave_overpressure
+
+	def calc_wave_radius(self, p, alpha=0.04, beta=1.8):
+		"""
+		方法用于计算泄漏物质发生蒸汽云爆炸时 p Mpa 冲击波超压对应的冲击波半径。
+		
+		Parameters:
+			p     - 冲击波超压，单位：Mpa。
+			alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
+			beta  - 地面爆炸系数，默认 beta=1.8。
+			
+		Returns:
+			p Mpa 冲击波超压对应的冲击波半径。
+		
+		Raises:
+			
+		"""
+		
+		import math
+		
+		tnt_weight = self.calc_turn_tnt(alpha, beta)
+		relative_dis = self.tnt_distance_of(p)
+		wave_radius = 0.1 * math.pow(tnt_weight, 1 / 3) * relative_dis
+		if wave_radius < 0: wave_radius = 0.0
+		self._add_result('overpressure:({p})'.format(p=p), wave_radius)
+		self._add_environment_param('relative_distance(p)', relative_dis)
+		return wave_radius
+
+	def fit(self): pass
+
+	def plot(self): pass
+
+	def get_info(self):
+		return super().get_info('steam cloud explosion model reports', width=80, v_width=40)
+
 	
 class PoolFires(FireModel):
-    """
-    液体池火模型，可以用于计算液体可燃物的燃烧速度、火焰高度、热辐射通量、
-    入热辐射强度、热辐射半径。
-    """
-    def __init__(self, material, mat_params, env_params):
-        """
-        构造函数。
-        
-        Parameters:
-            material   - 燃烧物质名称。
-            mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下键值对
-                
-                'boiling_point'          - 沸点，单位：K。
-                'combustion_heat'        - 燃烧热，单位：J/kg。
-                'specific_heat_capacity' - 定压比热容，单位：J/(kg·K)。
-                'gasification_heat'      - 气化热，单位：J/kg。
-                         
-            env_params - pandas Series 对象，环境参数。至少包含以下键值对
-            
-                'pool_radius' - 液池半径。单位：m。
-                'env_temp'    - 环境温度。单位：K。
-                'air_density' - 事故点周围空气密度，单位：kg/m^3。
-                
-        Returns:
-            None
-        
-        Raises:
-            None
-        """
-        super().__init__(material=material, mat_params=mat_params, env_params=env_params)
-    
-    def calc_burning_speed(self):
-        """
-        方法用于计算池火事故中，液体燃烧物质的燃烧速度。
+	"""
+	液体池火模型，可以用于计算液体可燃物的燃烧速度、火焰高度、热辐射通量、
+	入热辐射强度、热辐射半径。
+	"""
+	def __init__(self, material, mat_params, env_params):
+		"""
+		构造函数。
+		
+		Parameters:
+			material   - 燃烧物质名称。
+			mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下键值对
+				
+				'boiling_point'          - 沸点，单位：K。
+				'combustion_heat'        - 燃烧热，单位：J/kg。
+				'specific_heat_capacity' - 定压比热容，单位：J/(kg·K)。
+				'gasification_heat'      - 气化热，单位：J/kg。
+						 
+			env_params - pandas Series 对象，环境参数。至少包含以下键值对
+			
+				'pool_radius' - 液池半径。单位：m。
+				'env_temp'    - 环境温度。单位：K。
+				'air_density' - 事故点周围空气密度，单位：kg/m^3。
+				
+		Returns:
+			None
+		
+		Raises:
+			None
+		"""
+		super().__init__(material=material, mat_params=mat_params, env_params=env_params)
 
-        Parameters:
-            None
-        Returns: 
-            液体燃烧物质的燃烧速度，kg/(m^2·s)。
+	def calc_burning_speed(self):
+		"""
+		方法用于计算池火事故中，液体燃烧物质的燃烧速度。
 
-        Raises:
-            ZeroDivisionError - 除数为 0 异常。
-            KeyError          - 键不存在异常。
-            AssertError       - 模型参数空值断言异常。
-        """
-        mat_params = self.get_material_params()
-        env_params = self.get_environment_params()
-        boiling_point = mat_params['boiling_point']
-        combustion_heat = mat_params['combustion_heat']
-        specific_heat_capacity = mat_params['specific_heat_capacity']
-        gasification_heat = mat_params['gasification_heat']
-        env_temp = env_params['env_temp']
-        
-        assert boiling_point, self.assert_info('boiling_point')
-        assert combustion_heat, self.assert_info('combustion_heat')
-        assert specific_heat_capacity, self.assert_info('specific_heat_capacity')
-        assert gasification_heat, self.assert_info('gasification_heat')
-        assert env_temp, self.assert_info('env_temp')
-        
-        delta_temp = boiling_point - env_temp
+		Parameters:
+			None
+		Returns: 
+			液体燃烧物质的燃烧速度，kg/(m^2·s)。
 
-        if delta_temp > 0:
-            burning_speed = (1e-3 * combustion_heat) / (specific_heat_capacity * delta_temp + gasification_heat)
-        else:
-            burning_speed = (1e-3 * combustion_heat) / gasification_heat
-        
-        self._add_result('burning_speed', burning_speed)
-        return burning_speed
-    
-    def calc_flame_height(self):
-        """
-        方法用于计算池火事故中，液体燃烧物质燃烧时火焰高度。
+		Raises:
+			ZeroDivisionError - 除数为 0 异常。
+			KeyError          - 键不存在异常。
+			AssertError       - 模型参数空值断言异常。
+		"""
+		mat_params = self.get_material_params()
+		env_params = self.get_environment_params()
+		boiling_point = mat_params['boiling_point']
+		combustion_heat = mat_params['combustion_heat']
+		specific_heat_capacity = mat_params['specific_heat_capacity']
+		gasification_heat = mat_params['gasification_heat']
+		env_temp = env_params['env_temp']
+		
+		assert boiling_point, self.assert_info('boiling_point')
+		assert combustion_heat, self.assert_info('combustion_heat')
+		assert specific_heat_capacity, self.assert_info('specific_heat_capacity')
+		assert gasification_heat, self.assert_info('gasification_heat')
+		assert env_temp, self.assert_info('env_temp')
+		
+		delta_temp = boiling_point - env_temp
 
-        Parameters:
-            None
+		if delta_temp > 0:
+			burning_speed = (1e-3 * combustion_heat) / (specific_heat_capacity * delta_temp + gasification_heat)
+		else:
+			burning_speed = (1e-3 * combustion_heat) / gasification_heat
+		
+		self._add_result('burning_speed', burning_speed)
+		return burning_speed
 
-        Returns:
-            液体燃烧物质燃烧时的火焰高度，m。
-            
-        Raises:
-            ZeroDivisionError - 除数为 0 异常。
-            AssertError       - 模型参数空值断言异常。
-        """
-        import math
-        
-        mat_params = self.get_material_params()
-        env_params = self.get_environment_params()
-        air_density = env_params['air_density']
-        pool_radius = env_params['pool_radius']
-        
-        assert air_density, self.assert_info('air_density')
-        assert pool_radius, self.assert_info('pool_radius')
-        
-        if 'burning_speed' in mat_params.index:
-            burning_speed = mat_params['burning_speed']
-            assert burning_speed, self.assert_info('burning_speed')
-        else:
-            burning_speed = self.calc_burning_speed()
-        
-        tmp1 = burning_speed / (air_density * math.sqrt(19.6 * pool_radius))
-        flame_height = 84 * pool_radius * math.pow(tmp1, 0.6)
-        
-        self._add_result('flame_height(m)', flame_height)
-        
-        return flame_height
-    
-    def calc_heat_radiation(self, eta=0.24):
-        """
-        方法用于计算总热辐射通量。
-        
-        Parameters:
-            eta - 燃烧效率，取值范围 0.13 ~ 0.35，默认 0.24。
-        
-        Returns:
-            液体燃烧物质释放出的总热辐射通量, W。
-        
-        Raises:
-            ZeroDivisionError - 除数为 0 异常。
-            KeyError          - 键不存在异常。
-            AssertError       - 模型参数空值断言异常。
-        """
-        import math
-        
-        mat_params = self.get_material_params()
-        env_params = self.get_environment_params()
-        env_temp = env_params['env_temp']
-        pool_radius = env_params['pool_radius']
-        air_density = env_params['air_density']
-        combustion_heat = mat_params['combustion_heat']
-        
-        assert env_temp, self.assert_info('env_temp')
-        assert combustion_heat, self.assert_info('combustion_heat')
-        
-        if 'burning_speed' in mat_params.index:
-            burning_speed = mat_params['burning_speed']
-            assert burning_speed, self.assert_info('burning_speed')
-        else:
-            burning_speed = self.calc_burning_speed()
-            
-        flame_height = self.calc_flame_height()
-        tmp1 = math.pi * pool_radius * ( pool_radius + 2 * flame_height) * burning_speed * eta * combustion_heat
-        tmp2 = 72 * math.pow(burning_speed, 0.6) + 1
-        heat_radiation = tmp1 / tmp2
-        
-        self._add_environment_param('eta', eta)
-        self._add_result('heat_radiation(W)', heat_radiation)
-        
-        return heat_radiation
-    
-    def calc_heat_radiation_strength(self, x, eta=0.24, theta=1.0):
-        """
-        方法用于计算距离池火事故点中心 x 米处的目标热辐射强度。
-        
-        Parameters:
-            x     - 与池火事故点中心的距离，m。
-            eta   - 燃烧效率因子，取值 0.13 ≤ eta ≤ 0.35 默认 eta = 0.24。
-            theta - 热传导系数，默认 theta = 1.0。
-        
-        Returns:
-            距离池火事故点中心 x 米处的目标热辐射强度。W/m^2。
-        
-        Raises:
-            ZeroDivisionError - 除数为 0 异常。
-            AssertError       - 模型参数空值断言异常。
-        """
-        import math
-        
-        assert x > 0, 'x must be great than 0.'
-        
-        heat_radiation = self.calc_heat_radiation(eta)
-        heat_radiation_strength = (heat_radiation * theta) / (4 * math.pi * math.pow(x, 2))
-        
-        self._add_environment_param('theta', theta)
-        self._add_result('distance: {}(m)'.format(x), heat_radiation_strength)
-        
-        return heat_radiation_strength
-    
-    def calc_heat_radiation_radius(self, strength, eta=0.24, theta=1.0):
-        """
-        方法用于计算给定目标热辐射强度对应的半径。
-        
-        Parameters:
-            strength - 目标入射热幅度强度，W/m^2。
-            eta      - 燃烧效率因子（0.13 ≤ eta ≤ 0.35），默认 eta = 0.24。
-            theta    - 热传导系数，默认 theta = 1.0。
-        
-        Returns:
-            给定目标入射热辐射强度对应的半径，m。
-        
-        Raises:
-            ZeroDivisionError - 除数为 0 异常。
-            KeyError          - 键不存在异常。
-        """
-        import math
-        
-        heat_radiation = self.calc_heat_radiation(eta)
-        radius = math.sqrt((theta * heat_radiation) / (4 * math.pi * strength))
-        
-        self._add_environment_param('theta', theta)
-        self._add_result('strength: {}(W)'.format(strength), radius)
-        
-        return radius
-    
-    def fit(self): pass
-    
-    def plot(self): pass
-    
-    def get_info(self):
-        return super().get_info(title='pool fire model reports', width=80, v_width=40)
-        
-        
+	def calc_flame_height(self):
+		"""
+		方法用于计算池火事故中，液体燃烧物质燃烧时火焰高度。
+
+		Parameters:
+			None
+
+		Returns:
+			液体燃烧物质燃烧时的火焰高度，m。
+			
+		Raises:
+			ZeroDivisionError - 除数为 0 异常。
+			AssertError       - 模型参数空值断言异常。
+		"""
+		import math
+		
+		mat_params = self.get_material_params()
+		env_params = self.get_environment_params()
+		air_density = env_params['air_density']
+		pool_radius = env_params['pool_radius']
+		
+		assert air_density, self.assert_info('air_density')
+		assert pool_radius, self.assert_info('pool_radius')
+		
+		if 'burning_speed' in mat_params.index:
+			burning_speed = mat_params['burning_speed']
+			assert burning_speed, self.assert_info('burning_speed')
+		else:
+			burning_speed = self.calc_burning_speed()
+		
+		tmp1 = burning_speed / (air_density * math.sqrt(19.6 * pool_radius))
+		flame_height = 84 * pool_radius * math.pow(tmp1, 0.6)
+		
+		self._add_result('flame_height(m)', flame_height)
+		
+		return flame_height
+
+	def calc_heat_radiation(self, eta=0.24):
+		"""
+		方法用于计算总热辐射通量。
+		
+		Parameters:
+			eta - 燃烧效率，取值范围 0.13 ~ 0.35，默认 0.24。
+		
+		Returns:
+			液体燃烧物质释放出的总热辐射通量, W。
+		
+		Raises:
+			ZeroDivisionError - 除数为 0 异常。
+			KeyError          - 键不存在异常。
+			AssertError       - 模型参数空值断言异常。
+		"""
+		import math
+		
+		mat_params = self.get_material_params()
+		env_params = self.get_environment_params()
+		env_temp = env_params['env_temp']
+		pool_radius = env_params['pool_radius']
+		air_density = env_params['air_density']
+		combustion_heat = mat_params['combustion_heat']
+		
+		assert env_temp, self.assert_info('env_temp')
+		assert combustion_heat, self.assert_info('combustion_heat')
+		
+		if 'burning_speed' in mat_params.index:
+			burning_speed = mat_params['burning_speed']
+			assert burning_speed, self.assert_info('burning_speed')
+		else:
+			burning_speed = self.calc_burning_speed()
+			
+		flame_height = self.calc_flame_height()
+		tmp1 = math.pi * pool_radius * ( pool_radius + 2 * flame_height) * burning_speed * eta * combustion_heat
+		tmp2 = 72 * math.pow(burning_speed, 0.6) + 1
+		heat_radiation = tmp1 / tmp2
+		
+		self._add_environment_param('eta', eta)
+		self._add_result('heat_radiation(W)', heat_radiation)
+		
+		return heat_radiation
+
+	def calc_heat_radiation_strength(self, x, eta=0.24, theta=1.0):
+		"""
+		方法用于计算距离池火事故点中心 x 米处的目标热辐射强度。
+		
+		Parameters:
+			x     - 与池火事故点中心的距离，m。
+			eta   - 燃烧效率因子，取值 0.13 ≤ eta ≤ 0.35 默认 eta = 0.24。
+			theta - 热传导系数，默认 theta = 1.0。
+		
+		Returns:
+			距离池火事故点中心 x 米处的目标热辐射强度。W/m^2。
+		
+		Raises:
+			ZeroDivisionError - 除数为 0 异常。
+			AssertError       - 模型参数空值断言异常。
+		"""
+		import math
+		
+		assert x > 0, 'x must be great than 0.'
+		
+		heat_radiation = self.calc_heat_radiation(eta)
+		heat_radiation_strength = (heat_radiation * theta) / (4 * math.pi * math.pow(x, 2))
+		
+		self._add_environment_param('theta', theta)
+		self._add_result('distance: {}(m)'.format(x), heat_radiation_strength)
+		
+		return heat_radiation_strength
+
+	def calc_heat_radiation_radius(self, strength, eta=0.24, theta=1.0):
+		"""
+		方法用于计算给定目标热辐射强度对应的半径。
+		
+		Parameters:
+			strength - 目标入射热幅度强度，W/m^2。
+			eta      - 燃烧效率因子（0.13 ≤ eta ≤ 0.35），默认 eta = 0.24。
+			theta    - 热传导系数，默认 theta = 1.0。
+		
+		Returns:
+			给定目标入射热辐射强度对应的半径，m。
+		
+		Raises:
+			ZeroDivisionError - 除数为 0 异常。
+			KeyError          - 键不存在异常。
+		"""
+		import math
+		
+		heat_radiation = self.calc_heat_radiation(eta)
+		radius = math.sqrt((theta * heat_radiation) / (4 * math.pi * strength))
+		
+		self._add_environment_param('theta', theta)
+		self._add_result('strength: {}(W)'.format(strength), radius)
+		
+		return radius
+
+	def fit(self): pass
+
+	def plot(self): pass
+
+	def get_info(self):
+	
+		return super().get_info(title='pool fire model reports', width=80, v_width=40)
+		
 def module_test():
 	import pandas as pd
 
@@ -449,6 +449,6 @@ def module_test():
 	rawoil.calc_heat_radiation_radius(strength=25000, eta=0.35)
 	rawoil.calc_heat_radiation_radius(strength=12500, eta=0.35)
 	print(rawoil.get_info())
-
-
+	
+	
 if '__main__' == __name__: module_test()
