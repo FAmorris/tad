@@ -1,4 +1,7 @@
 # coding: utf-8
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from abc import ABC, abstractmethod
 
@@ -222,8 +225,84 @@ class FireModel(SecurityModel):
 class GasDiffusion(SecurityModel):
 	
 	def __init__(self, material, mat_params, env_params):
+		import pandas as pd
+		
 		super().__init__(material=material, mat_params=mat_params, env_params=env_params)
+		
+		self._srlt = pd.DataFrame([[-2, -1, 1, 2, 3],
+								   [-1, 0, 1, 2, 3],
+								   [-1, 0, 0, 1, 1],
+								   [0, 0, 0, 0, 1],
+								   [0, 0, 0, 0, 0]])
+								   
+		self._ast = pd.DataFrame([['A', 'A~B', 'B', 'D', 'E', 'F'],
+								  ['A~B', 'B', 'C', 'D', 'E', 'F'],
+								  ['B', 'B~C', 'C', 'D', 'D', 'E'],
+								  ['C', 'C~D', 'D', 'D', 'D', 'D'],
+								  ['D', 'D', 'D', 'D', 'D', 'D']], 
+								  columns=['3', '2', '1', '0', '-1', '-2'])
+		
+		self._dpct_index=[[0, 1, 2, 
+						   1, 2, 
+						   1, 2, 
+						   1, 2, 
+						   1, 2, 
+						   0, 1, 2, 
+						   0, 1, 2, 
+						   0, 1, 2, 
+						   0, 1, 2, 
+						   0, 1, 2, 
+						   0, 1, 2],
+						  ['A', 'A', 'A', 
+						  'A~B', 'A~B', 
+						  'B', 'B', 
+						  'B~C', 'B~C', 
+						  'C', 'C',
+						  'C~D', 'C~D', 'C~D',
+						  'D', 'D', 'D',
+						  'D~E', 'D~E', 'D~E',
+						  'E', 'E', 'E',
+						  'E~F', 'E~F', 'E~F',
+						  'F', 'F', 'F']]
+						  
+		self._dpct = pd.DataFrame([[0.000000, 0.000000, 1.12154, 0.079990],  # A                垂直 0 ~ 300
+								   [0.901074, 0.425809, 1.51360, 0.008548],  # A   水平 0~1000，垂直 300 ~ 500
+								   [0.850934, 0.602052, 2.10881, 0.000212],  # A   水平 > 1000，垂直 > 500
+								   [0.907722, 0.353828, 1.19986, 0.071909],  # A~B 水平 0~1000，垂直 0~500
+								   [0.857974, 0.499203, 1.60119, 0.028618],  # A~B 水平 > 1000，垂直 > 500
+								   [0.914370, 0.281846, 0.96444, 0.127190],  # B   水平 0~1000，垂直 0 ~ 500
+								   [0.865014, 0.396353, 1.09356, 0.057025],  # B   水平 > 1000，垂直 > 500
+								   [0.919325, 0.229500, 0.94102, 0.114682],  # B~C 水平 0~1000，垂直 0 ~ 500
+								   [0.875086, 0.314238, 1.00770, 0.075718],  # B~C 水平 > 1000，垂直 > 500
+								   [0.924279, 0.177154, 0.00000, 0.000000],  # C   水平 1~1000，垂直 0 ~ 500
+								   [0.885157, 0.232123, 0.91760, 0.106803],  # C   水平 > 1000，垂直 > 0
+								   [0.000000, 0.000000, 0.83863, 0.126152],  # C~D              垂直 0~ 2000
+								   [0.926849, 0.143940, 0.75641, 0.235667],  # C~D 水平 1~1000，垂直 2000~10000
+								   [0.886940, 0.189396, 0.81558, 0.136659],  # C~D 水平 > 1000，垂直 > 10000
+								   [0.000000, 0.000000, 0.82621, 0.104634],  # D                垂直 1 ~ 1000
+								   [0.929418, 0.110726, 0.63202, 0.400167],  # D   水平 1~1000，垂直 1000~10000
+								   [0.888723, 0.146669, 0.55536, 0.810763],  # D   水平 > 1000，垂直 > 10000
+								   [0.000000, 0.000000, 0.77686, 0.111771],  # D~E              垂直 0~2000
+								   [0.925118, 0.098563, 0.57235, 0.528992],  # D~E 水平 1~1000，垂直 2000~10000
+								   [0.892794, 0.124308, 0.49915, 1.037100],  # D~E 水平 >1000， 垂直 > 10000
+								   [0.000000, 0.000000, 0.78837, 0.092753],  # E 				垂直 0~1000
+								   [0.920818, 0.086400, 0.56518, 0.433384],  # E   水平 1~1000，垂直 1000~10000
+								   [0.896864, 0.101947, 0.41474, 1.732410],  # E   水平 > 1000，垂直 > 10000
+								   [0.000000, 0.000000, 0.78639, 0.077415],  # E~F              垂直 0~1000
+								   [0.925118, 0.070882, 0.54558, 0.401700],  # E~F 水平 0~1000，垂直 1000~10000
+								   [0.892794, 0.087641, 0.36870, 2.069660],  # E~F 水平 > 1000，垂直 > 10000
+								   [0.000000, 0.000000, 0.78440, 0.062077],  # F                垂直 0~1000
+								   [0.929418, 0.055363, 0.52597, 0.370015],  # F   水平 0~1000，垂直 1000~10000
+								   [0.888723, 0.073335, 0.32266, 2.406910]], # F   水平 > 1000，垂直 > 10000
+								   index=self._dpct_index,
+								   columns=['alpha1', 'gama1', 'alpha2', 'gama2'])
 	
+	def get_solar_radiation_level_table(self): return self._srlb.copy()
+	
+	def get_atmospheric_stability_table(self): return self._ast.copy()
+	
+	def _get_dpct(self): return self._dpct.copy()
+		
 	def calc_declination(self):
 		from datetime import datetime
 		import math
@@ -239,20 +318,86 @@ class GasDiffusion(SecurityModel):
 		
 		return declination
 		
-	def calc_solar_angle(self, longtitude, latitude):
+	def calc_solar_angle(self):
 		from datetime import datetime
 		import math
 		
+		env_params = self.get_environment_params()
+		
+		lgt = env_params['longtitude']
+		lat = env_params['latitude']
+		
 		declination = self.calc_declination()
 		
-		solar_angle = math.arcsin(math.sin(latitude) * declination\
-						+ math.cos(latitude) * math.cos(declination)\
-						* (15 * datetime.now().hour + longtitude - 300))
+		solar_angle = math.arcsin(math.sin(lat) * declination + math.cos(lat)\
+						* math.cos(declination) * (15 * datetime.now().hour + lgt - 300))
 		
 		return solar_angle
 		
-	def calc_solar_radiation_level(self):
+	def get_solar_radiation_level(self):
+		from datetime import datetime
 		
+		hour = datetime.now().hour
+		env_params = self.get_environment_params()
+		tcloudiness = env_params['total_cloudiness']
+		lcloudiness = env_params['low_cloudiness']
+		
+		if (tcloudiness <= 4 and lcloudiness <= 4): row = 0
+			elif (5 < tcloudiness < 7) and (lcloudiness <= 4): row = 1
+			elif (tcloudiness >= 8) and (lcloudiness <= 4): row = 2
+			elif (tcloudiness >= 5) and (5 < lcloudiness < 7): row = 3
+			elif (tcloudiness >= 8) and (lcloudiness >= 8): row = 4
+		
+		if 7 <= hour <= 18:
+			solar_angle = self.calc_solar_angle()
+			
+			if solar_angle <= 15: col = 1
+			elif 15 < solar_angle <= 35: col = 2
+			elif 35 < solar_angle <= 65: col = 3
+			elif solar_angle > 65: col = 4
+		else: col = 0
+	
+		solar_radiation_level = self.get_solar_radiation_level_table().iloc[row, col]
+		
+		return solar_radiation_level
+		
+	def get_atmospheric_stability(self):
+		
+		env_params = self.get_environment_params()
+		wind_volicity = env_params['wind_volicity']
+		srl = str(self.calc_solar_radiation_level())
+		
+		if 0 <= wind_volicity <= 1.9: row = 0
+		elif 1.9 < wind_volicity <= 2.9: row = 1
+		elif 2.9 < wind_volicity <= 4.9: row = 2
+		elif 4.9 < wind_volicity <= 5.9: row = 3
+		elif wind_volicity >= 6.0: row = 4
+		
+		atmospheric_stability = self.get_atmospheric_stability_table().iloc[row][srl]
+		
+		return atmospheric_stability
+		
+	def get_diffusion_param_coeffs(self, p_gis=None, p_dis=None):
+		from utils import calc_gisdistance
+		
+		assert (p_gis and p_dis), self.assert_info('p_gis and p_dis') + 'both.'
+		
+		atmos_stat = self.get_atmospheric_stability()
+		
+		x = p_dis if p_dis else calc_gisdistance(p_gis)
+		
+		if 'A' == atmos_stat:
+			row = 0
+			if 0 < x < 300:
+				alpha1 = 
+			
+			
+		
+		
+		
+		
+		
+			
 		
 		
 	
