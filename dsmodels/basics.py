@@ -460,9 +460,22 @@ class GasDiffusion(SecurityModel):
         
         return hdpcg.to_list() + vdpcg.to_list()
     
-    def fit(self): pass
-    
-    def plot(self): pass
+    def calc_diffusion_parameters(self, p_gis=None, p_dis=None, freq=30):
+        assert 30 <= freq < 6000, self.assert_info('freq')
+        
+        results = self.get_diffusion_param_coeffs(p_gis, p_dis)
+        dpcgs = results[0]
+        x = results[1]
+        freq_h = freq / 60
+        
+        sigma_y = dpcgs[1] * math.pow(x, dpcgs[0])
+        sigma_z = dpcgs[3] * math.pow(x, dpcgs[2])
+        
+        q = 0.2 if 0.5 < freq_h < 1 else 0.3
+        
+        sigma_y *= math.pow(freq_h, q)
+        
+        return sigma_y, sigma_z
     
     def get_info(self, title='gas diffusion report', width=80, v_width=40):
         return super().get_info(title=title, width=width, v_width=v_width)
