@@ -7,19 +7,20 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from basics import ExplosionModel, FireModel
+from basics import ExplosionModel, FireModel, GasDiffusionModel
+from utils import calc_gisdistance
 
 class SteamCloudExplosion(ExplosionModel):
     """
     蒸汽云爆炸模型，可以用于计算蒸汽云质量、蒸汽云爆破能、蒸汽云爆炸 TNT 当量转换、
     蒸汽云冲击波超压计算、蒸汽云冲击波超压距离半径计算。
     """
-    _MAT_NE_PARAMS = pd.Index(['material_volume',
-                               'material_density',
-                               'combustion_heat',
-                               'material_weight'])
+    _MAT_NE_PARAMS = pd.Series(['material_volume',
+                                'material_density',
+                                'combustion_heat',
+                                'material_weight'])
     
-    _ENV_NE_PARAMS = pd.Index(['tnt_explosive_energy'])
+    _ENV_NE_PARAMS = pd.Series(['tnt_explosive_energy'])
     
     def __init__(self, material, mat_params, env_params):
         """
@@ -189,7 +190,7 @@ class SteamCloudExplosion(ExplosionModel):
         relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
         wave_overpressure = self.tnt_overpressure_of(relative_dis)
         if wave_overpressure < 0: wave_overpressure = 0.0
-        self._add_environment_param('relative_distance(x)', relative_dis)
+        self._add_environment_param('relative_distance: {x}m'.format(x), relative_dis)
         self._add_result('distance: ({x})'.format(x=x), wave_overpressure)
         
         return wave_overpressure
@@ -218,32 +219,44 @@ class SteamCloudExplosion(ExplosionModel):
         relative_dis = self.tnt_distance_of(p)
         wave_radius = 0.1 * math.pow(tnt_weight, 1 / 3) * relative_dis
         if wave_radius < 0: wave_radius = 0.0
-        self._add_result('overpressure:({p})'.format(p=p), wave_radius)
-        self._add_environment_param('relative_distance(p)', relative_dis)
+        self._add_result('overpressure: ({p})'.format(p=p), wave_radius)
+        self._add_environment_param('relative_distance:{p}Mpa'.format(p=p), relative_dis)
         return wave_radius
         
     def fit(self): pass
     
     def plot(self): pass
     
+    @staticmethod
+    def get_necessary_mat_params():
+        tmp1 = ExplosionModel.get_necessary_mat_params()
+        tmp2 = SteamCloudExplosion._MAT_NE_PARAMS.copy()
+        return pd.concat([tmp1, tmp2], ignore_index=True)
+    
+    @staticmethod
+    def get_necessary_env_params():
+        tmp1 = ExplosionModel.get_necessary_env_params()
+        tmp2 = SteamCloudExplosion._ENV_NE_PARAMS.copy()
+        return pd.concat([tmp1, tmp2], ignore_index=True)
+    
     def get_info(self):
         return super().get_info('steam cloud explosion model reports', width=80, v_width=40)
         
         
-class PoolFires(FireModel):
+class PoolFire(FireModel):
     """
     液体池火模型，可以用于计算液体可燃物的燃烧速度、火焰高度、热辐射通量、
     入热辐射强度、热辐射半径。
     """
-    _MAT_NE_PARAMS = pd.Index(['boiling_point',
-                               'combustion_heat',
-                               'specific_heat_capacity',
-                               'gasification_heat',
-                               'burning_speed'])
+    _MAT_NE_PARAMS = pd.Series(['boiling_point',
+                                'combustion_heat',
+                                'specific_heat_capacity',
+                                'gasification_heat',
+                                'burning_speed'])
                                
-    _ENV_NE_PARAMS = pd.Index(['pool_radius',
-                               'env_temp',
-                               'air_density'])
+    _ENV_NE_PARAMS = pd.Series(['pool_radius',
+                                'env_temp',
+                                'air_density'])
     
     def __init__(self, material, mat_params, env_params):
         """
@@ -270,11 +283,12 @@ class PoolFires(FireModel):
         Raises:
             None
         """
-        if (not PoolFires._MAT_NE_PARAMS.isin(mat_params.index).all())\
-            or (not PoolFires._ENV_NE_PARAMS.isin(env_params.index).all()):
+        if (not PoolFire._MAT_NE_PARAMS.isin(mat_params.index).all())\
+            or (not PoolFire._ENV_NE_PARAMS.isin(env_params.index).all()):
             raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
+            
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
         
         self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
@@ -461,39 +475,89 @@ class PoolFires(FireModel):
     
     def plot(self): pass
     
-    def get_info(self):
+    @staticmethod
+    def get_necessary_mat_params():
+        tmp1 = FireModel.get_necessary_mat_params()
+        tmp2 = PoolFire._MAT_NE_PARAMS.copy()
+        return pd.concat([tmp1, tmp2], ignore_index=True)
     
+    @staticmethod
+    def get_necessary_env_params():
+        tmp1 = FireModel.get_necessary_env_params()
+        tmp2 = PoolFire._ENV_NE_PARAMS.copy()
+        return pd.concat([tmp1, tmp2], ignore_index=True)
+    
+    def get_info(self):
         return super().get_info(title='pool fire model reports', width=80, v_width=40)
         
         
-class PointSourceGasDiffusion(GasDiffusion):
+class PointSourceGasDiffusion(GasDiffusionModel):
     
-    def __init__(self, material, mat_params=pd.Series(), env_params=pd.Series())
+    _MAT_NE_PARAMS = pd.Series()
+    _ENV_NE_PARAMS = pd.Series(['source_strength'])
+    
+    def __init__(self, material, mat_params=pd.Series(), env_params=pd.Series()):
+        if (not PointSourceGasDiffusion._ENV_NE_PARAMS.isin(env_params.index).all()):
+            raise KeyError('model parameter loss.')
+        if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
+            raise KeyError('model parameter is not unique.')
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
+        
+        self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
+                                      env_params[env_params.isnull()]], sort=False)
+        
+    def calc_source_strength(self):
+        env_params = self.get_environment_params()
+        
+        if env_params['source_strength'] > 0.0:
+            return env_params['source_strength']
     
-    def calc_source_strength(self): pass
+    def calc_concentration(self, pgis=None, hdis=None, vdis=None, ddis=0.0, srch=0.0):
+        
+        assert pgis or vdis, self.assert_info('pgis, vdis')
+        assert ddis >= 0.0, self.assert_info('ddis')
+        assert srch >= 0.0, self.assert_info('srch')
+        if vdis: assert vdis >= 0.0, self.assert_info('vdis')
+        
+        sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
+        y = vdis if vdis else calc_gisdistance(pgis)
+        source_strength = calc_source_strength()
+     
+    def fit(self): pass
     
-    def 
+    def plot(self): pass
+     
+    @staticmethod
+    def get_necessary_mat_params():
+        tmp1 = GasDiffusionModel.get_necessary_mat_params()
+        tmp2 = PointSourceGasDiffusion._MAT_NE_PARAMS.copy()
+        return pd.concat([tmp1, tmp2], ignore_index=True)
+    
+    @staticmethod
+    def get_necessary_env_params():
+        tmp1 = GasDiffusionModel.get_necessary_env_params()
+        tmp2 = PointSourceGasDiffusion._ENV_NE_PARAMS.copy()
+        return pd.concat([tmp1, tmp2], ignore_index=True)
+        
+    def get_info(self):
+        return super().get_info(title='point source gas diffusion model reports', width=80, v_width=40)
 
 def module_test():
     import pandas as pd
     gas_mat_params = pd.Series({'material_volume': 3000 * 1e-2,
                                 'material_density': 0.79 * 1e3,
                                 'combustion_heat': 45980,
-                                'material_weight': np.nan})
+                                'material_weight': None})
     gas_env_params = pd.Series({'tnt_explosive_energy': 4675})
 
     gas = SteamCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
-    gas.calc_material_weight()
-    gas.calc_explosive_energy()
-    gas.calc_turn_tnt()
     gas.calc_wave_radius(0.1)
     print(gas.get_info())
 
-    rawoil_mat_params = {'boiling_point': '', 
+    rawoil_mat_params = {'boiling_point': None,
                          'combustion_heat': 41030000,
-                         'specific_heat_capacity': '',
-                         'gasification_heat': '',
+                         'specific_heat_capacity': None,
+                         'gasification_heat': None,
                          'burning_speed': 0.0781}
     rawoil_env_params = {'env_temp': 25,
                          'pool_radius': 24.7,
@@ -501,7 +565,7 @@ def module_test():
     mat_params = pd.Series(rawoil_mat_params)
     env_params = pd.Series(rawoil_env_params)
 
-    rawoil = PoolFires('rawoil', mat_params=mat_params, env_params=env_params)
+    rawoil = PoolFire('rawoil', mat_params=mat_params, env_params=env_params)
     rawoil.calc_heat_radiation_strength(100, eta=0.35)
     rawoil.calc_heat_radiation_radius(strength=37500, eta=0.35)
     rawoil.calc_heat_radiation_radius(strength=25000, eta=0.35)
