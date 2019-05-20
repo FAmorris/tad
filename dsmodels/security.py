@@ -44,7 +44,7 @@ class SteamCloudExplosion(ExplosionModel):
         Raises:
             None
         """
-
+        
         if (not SteamCloudExplosion._MAT_NE_PARAMS.isin(mat_params.index).all())\
             or (not SteamCloudExplosion._ENV_NE_PARAMS.isin(env_params.index).all()):
             raise KeyError('model parameter loss.')
@@ -324,7 +324,7 @@ class PoolFire(FireModel):
         assert not (env_temp is np.nan), self.assert_info('env_temp')
         
         delta_temp = boiling_point - env_temp
-
+        
         if delta_temp > 0:
             burning_speed = (1e-3 * combustion_heat) / (specific_heat_capacity * delta_temp + gasification_heat)
         else:
@@ -336,10 +336,10 @@ class PoolFire(FireModel):
     def calc_flame_height(self):
         """
         方法用于计算池火事故中，液体燃烧物质燃烧时火焰高度。
-
+        
         Parameters:
             None
-
+            
         Returns:
             液体燃烧物质燃烧时的火焰高度，m。
             
@@ -405,7 +405,8 @@ class PoolFire(FireModel):
             assert burning_speed > 0.0, self.assert_info('burning_speed')
             
         flame_height = self.calc_flame_height()
-        tmp1 = math.pi * pool_radius * ( pool_radius + 2 * flame_height) * burning_speed * eta * combustion_heat
+        tmp1 = math.pi * pool_radius * ( pool_radius + 2 * flame_height)\
+                       * burning_speed * eta * combustion_heat
         tmp2 = 72 * math.pow(burning_speed, 0.6) + 1
         heat_radiation = tmp1 / tmp2
         
@@ -442,7 +443,7 @@ class PoolFire(FireModel):
         self._add_result('distance: {}(m)'.format(x), heat_radiation_strength)
         
         return heat_radiation_strength
-
+        
     def calc_heat_radiation_radius(self, strength, eta=0.24, theta=1.0):
         """
         方法用于计算给定目标热辐射强度对应的半径。
@@ -492,7 +493,6 @@ class PoolFire(FireModel):
         
         
 class PointSourceGasDiffusion(GasDiffusionModel):
-    
     _MAT_NE_PARAMS = pd.Series()
     _ENV_NE_PARAMS = pd.Series(['source_strength', 'wind_volicity'])
     
@@ -507,31 +507,41 @@ class PointSourceGasDiffusion(GasDiffusionModel):
                                       env_params[env_params.isnull()]], sort=False)
         
     def calc_source_strength(self):
+        """
+        g/s
+        """
         env_params = self.get_environment_params()
         
         if env_params['source_strength'] > 0.0:
             return env_params['source_strength']
     
-    def calc_concentration(self, pgis=None, hdis=None, vdis=None, ddis=0.0, srch=0.0):
+    def calc_concentration(self, pgis=None, hdis=None, vdis=None, ddis=0, srch=0):
+        """
+        mg/m^3
+        """
         env_params = self.get_environment_params()
         wind_volicity = env_params['wind_volicity']
         
-        assert wind_volicity > 0.0, self.assert_info('wind_volicity')
+        assert wind_volicity > 0, self.assert_info('wind_volicity')
         assert pgis or vdis, self.assert_info('pgis, vdis')
-        assert ddis >= 0.0, self.assert_info('ddis')
-        assert srch >= 0.0, self.assert_info('srch')
-        if vdis: assert vdis >= 0.0, self.assert_info('vdis')
+        assert ddis >= 0, self.assert_info('ddis')
+        assert srch >= 0, self.assert_info('srch')
+        if vdis: assert vdis >= 0, self.assert_info('vdis')
         
         sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
         y = vdis if vdis else calc_gisdistance(pgis)
         source_strength = self.calc_source_strength()
         
-        a1 = source_strength / (2 * math.pi * wind_volicity * sigma_y * sigma_z)
+        a1 = source_strength / (math.pi * wind_volicity * sigma_y * sigma_z)
         a2 = -0.5 * math.pow(y / sigma_y, 2)
         a3 = -0.5 * math.pow((ddis - srch) / sigma_z, 2)
         a4 = -0.5 * math.pow((ddis + srch) / sigma_z, 2)
-        concentration = a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
-        self._add_result('concentration({}, {}, {})'.format(hdis, vdis, ddis), concentration)
+        
+        if (0 == srch) or (0 == ddis): 
+            concentration = a1 * math.exp(a2 + a4)
+        else:
+            concentration = 0.5 * a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
+        self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), concentration)
         
         return concentration
      
@@ -543,7 +553,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
     def get_necessary_mat_params():
         tmp1 = GasDiffusionModel.get_necessary_mat_params()
         tmp2 = PointSourceGasDiffusion._MAT_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True)
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     @staticmethod
     def get_necessary_env_params():
@@ -553,7 +563,8 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         
     def get_info(self):
         return super().get_info(title='point source gas diffusion model reports', width=80, v_width=40)
-
+        
+        
 def module_test():
     import pandas as pd
     gas_mat_params = pd.Series({'material_volume': 3000 * 1e-2,
@@ -561,11 +572,11 @@ def module_test():
                                 'combustion_heat': 45980,
                                 'material_weight': None})
     gas_env_params = pd.Series({'tnt_explosive_energy': 4675})
-
+    
     gas = SteamCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
     gas.calc_wave_radius(0.1)
     print(gas.get_info())
-
+    
     rawoil_mat_params = {'boiling_point': None,
                          'combustion_heat': 41030000,
                          'specific_heat_capacity': None,
@@ -576,7 +587,7 @@ def module_test():
                          'air_density': 1.293}
     mat_params = pd.Series(rawoil_mat_params)
     env_params = pd.Series(rawoil_env_params)
-
+    
     rawoil = PoolFire('rawoil', mat_params=mat_params, env_params=env_params)
     rawoil.calc_heat_radiation_strength(100, eta=0.35)
     rawoil.calc_heat_radiation_radius(strength=37500, eta=0.35)
@@ -584,17 +595,17 @@ def module_test():
     rawoil.calc_heat_radiation_radius(strength=12500, eta=0.35)
     print(rawoil.get_info())
     
-    env_params = pd.Series({'wind_volicity': 1,
-                            'center_longtitude': 120.0,
-                            'center_latitude': 30.0,
+    env_params = pd.Series({'wind_volicity': 3,
+                            'center_longtitude': 121.0212504359,
+                            'center_latitude': 30.6650761821,
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
-                            'source_strength': 1 * 1e6})
+                            'source_strength': 1e5})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-    h2.calc_concentration(hdis=200, vdis=200)
+    h2.calc_concentration(hdis=100, vdis=100, ddis=2, srch=5)
     print(h2.get_info())
-
+    
 if '__main__' == __name__: 
     module_test()
     # print(PointSourceGasDiffusion.get_necessary_env_params())

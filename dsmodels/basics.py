@@ -33,9 +33,8 @@ class SecurityModel(ABC):
             None
             
         Raises:
-        
+            None
         """
-        
         self._results = pd.Series()
         self.set_material(material)
         self.set_material_params(mat_params)
@@ -114,7 +113,10 @@ class ExplosionModel(SecurityModel):
     物质爆炸模型抽象基类，'SecurityModel' 的子类，该抽象类实现了
     1000kg TNT 爆炸产生冲击波超压与爆炸中心之间距离的计算算法。
     """
-    
+    _DIST = (5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75)
+    _PRES = (2.94, 2.06, 1.67, 1.27, 0.95, 0.76, 0.50, 0.33, 0.235, 0.17, 0.126, 0.079, 0.057,
+             0.043, 0.033, 0.027, 0.0235, 0.0205, 0.018, 0.016, 0.0143, 0.013)
+    _DATASET = pd.Series(_PRES, index=_DIST)
     _MAT_NE_PARAMS = pd.Series()
     _ENV_NE_PARAMS = pd.Series()
     
@@ -134,21 +136,15 @@ class ExplosionModel(SecurityModel):
         
         """
         
-        self._dist = (5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75)
-        self._pres = (2.94, 2.06, 1.67, 1.27, 0.95, 0.76, 0.50, 0.33, 0.235, 0.17, 0.126, 0.079, 0.057, 
-                      0.043, 0.033, 0.027, 0.0235, 0.0205, 0.018, 0.016, 0.0143, 0.013)
                       
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
-        self._dataset = pd.Series(self._pres, index=self._dist)
-        self.polyfit()
-        
-    def get_dataset(self): return self._dataset.copy()
+        self._polyfit()
     
-    def get_pod_poly(self): return self._pod_poly
+    def _get_pod_poly(self): return self._pod_poly
     
-    def get_dop_poly(self): return self._dop_poly
+    def _get_dop_poly(self): return self._dop_poly
     
-    def polyfit(self):
+    def _polyfit(self):
         """
         方法采用三次样条插值算法拟合 1000kg TNT 产生的超压和距离之间的关系式。
         
@@ -161,8 +157,7 @@ class ExplosionModel(SecurityModel):
         Raises:
             
         """
-        
-        dataset = self.get_dataset()
+        dataset = ExplosionModel._DATASET
         dataset_revers = dataset.sort_values()
         
         self._pod_poly = splrep(dataset.index.values, dataset.values)
@@ -183,7 +178,7 @@ class ExplosionModel(SecurityModel):
         """
         assert distance >= 0.0, self.assert_info('distance')
         
-        return splev(distance, self.get_pod_poly())
+        return splev(distance, self._get_pod_poly())
         
     def tnt_distance_of(self, overpressure): 
         """
@@ -200,7 +195,7 @@ class ExplosionModel(SecurityModel):
         """
         assert overpressure > 0.0, self.assert_info()
         
-        return splev(overpressure, self.get_dop_poly())
+        return splev(overpressure, self._get_dop_poly())
     
     @staticmethod
     def get_necessary_mat_params():
@@ -224,7 +219,7 @@ class FireModel(SecurityModel):
     """
     _MAT_NE_PARAMS = pd.Series()
     _ENV_NE_PARAMS = pd.Series()
-                                
+    
     def __init__(self, material='', mat_params=pd.Series(), env_params=pd.Series()):
         """
         构造函数。
@@ -240,7 +235,6 @@ class FireModel(SecurityModel):
         Raises:
         
         """
-        
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
         
     @staticmethod
@@ -260,19 +254,27 @@ class FireModel(SecurityModel):
         
         
 class GasDiffusionModel(SecurityModel):
+    """
+    气体扩散模型抽象子类，'SecurityModel' 的子类，该抽象类实现了
+    赤纬计算、大气稳定度计算、扩散参数系数计算、扩散参数计算
+    """
+    
+    # 太阳辐射等级表
     _SRLT = pd.DataFrame([[-2, -1, 1, 2, 3],
                           [-1, 0, 1, 2, 3],
                           [-1, 0, 0, 1, 1],
                           [0, 0, 0, 0, 1],
                           [0, 0, 0, 0, 0]])
-                                   
+                          
+    # 大气稳定度
     _AST = pd.DataFrame([['A', 'A~B', 'B', 'D', 'E', 'F'],
                          ['A~B', 'B', 'C', 'D', 'E', 'F'],
                          ['B', 'B~C', 'C', 'D', 'D', 'E'],
                          ['C', 'C~D', 'D', 'D', 'D', 'D'],
                          ['D', 'D', 'D', 'D', 'D', 'D']], 
                          columns=['3', '2', '1', '0', '-1', '-2'])
-        
+    
+    # 大气扩散参数系数表索引
     _DPCT_INDEX=[['A', 'A', 'A',
                   'A~B', 'A~B',
                   'B', 'B',
@@ -296,6 +298,7 @@ class GasDiffusionModel(SecurityModel):
                   0, 1, 2,
                   0, 1, 2]]
                           
+    # 大气扩散参数系数表
     _DPCT = pd.DataFrame([[0.000000, 0.000000, 1.12154, 0.079990],  # A                垂直 0 ~ 300
                           [0.901074, 0.425809, 1.51360, 0.008548],  # A   水平 0~1000，垂直 300 ~ 500
                           [0.850934, 0.602052, 2.10881, 0.000212],  # A   水平 > 1000，垂直 > 500
@@ -336,6 +339,21 @@ class GasDiffusionModel(SecurityModel):
                                 'wind_volicity'])
     
     def __init__(self, material='', mat_params=pd.Series(), env_params=pd.Series()):
+        """
+        构造函数。
+        
+        Parameters:
+            'env_params' - pandas Series 对象，参数中必须包含以下 key - values
+            
+                'center_longtitude' - 区域经度，单位：°
+                'center_latitude'   - 区域纬度，单位：°
+                'total_cloudiness'  - 建模时环境总云量。
+                'low_cloudiness'    - 建模时环境低云量。
+                'wind_volicity'     - 建模时环境风速，单位：m/s。
+        
+        Raises:
+            KeyError
+        """
         
         if (not GasDiffusionModel._ENV_NE_PARAMS.isin(env_params.index).all()):
             raise KeyError('model parameter loss.')
@@ -356,8 +374,21 @@ class GasDiffusionModel(SecurityModel):
     def _get_dpct(self): return self._dpct.copy()
         
     def calc_declination(self):
-        day = datetime.now().timetuple().tm_yday
+        """
+        方法用于计算赤纬。根据国标标准 《GB/T13201-91》计算所给公式计算。
+        δ = [0.006918 - 0.399912cosθ + 0.070257sinθ - 0.006758cos2θ 
+                + 0.000907sin2θ - 0.002697cos3θ + 0.00148sin3θ] * 180 / π
         
+        Parameters:
+            None
+        
+        Returns:
+            赤纬，单位：°
+        
+        Raises:
+            None
+        """
+        day = datetime.now().timetuple().tm_yday
         if 366 == day: day = 365
         theta = 360 * day / 365
         
@@ -369,6 +400,26 @@ class GasDiffusionModel(SecurityModel):
         return declination
         
     def calc_solar_angle(self):
+        """
+        方法用于计算地方太阳高度角。根据国标标准 《GB/T13201-91》计算所给公式计算。
+        env_params 参数中必须包含以下 key - value
+        
+            'center_longtitude' - 当地经度，单位：°。
+            'center_latitude' - 当地纬度，单位：°。
+            
+        h = arcsin[sinφsinδ + cosφcosδ(15t + λ - 300)]
+        φ：当地纬度。
+        λ：当地经度。
+        
+        Parameters:
+            None
+        
+        Returns:
+            太阳高度角，单位：°
+        
+        Raises:
+            AssertionError
+        """
         env_params = self.get_environment_params()
         lgt = env_params['center_longtitude']
         lat = env_params['center_latitude']
@@ -385,6 +436,22 @@ class GasDiffusionModel(SecurityModel):
         return solar_angle
         
     def get_solar_radiation_level(self):
+        """
+        方法用于获取太阳辐射等级。'env_params' 参数中必须包含以下 key - value
+            
+            'total_cloudiness' - 建模时环境总云量。
+            'low_cloudiness'   - 建模时环境低云量。
+        
+        Parameters:
+            None
+        
+        Returns:
+            太阳辐射等级。
+        
+        Raises:
+            AssertionError
+            KeyError
+        """
         env_params = self.get_environment_params()
         tc = env_params['total_cloudiness']
         lc = env_params['low_cloudiness']
@@ -394,13 +461,15 @@ class GasDiffusionModel(SecurityModel):
         assert tc >= lc, self.assert_info('total_cloudiness, low_cloudiness')
         hour = datetime.now().hour
         
+        # 云量
         if (tc <= 4 and lc <= 4): row = 0
         elif (5 <= tc < 7) and (lc <= 4): row = 1
         elif (tc >= 8) and (lc <= 4): row = 2
         elif (tc >= 5) and (5 <= lc < 7): row = 3
         elif (tc >= 8) and (lc >= 8): row = 4
         
-        if 7 <= hour <= 18:
+        # 日间
+        if 7 <= hour <= 19:
             solar_angle = self.calc_solar_angle()
             
             if solar_angle <= 15: col = 1
@@ -415,6 +484,21 @@ class GasDiffusionModel(SecurityModel):
         return solar_radiation_level
         
     def get_atmospheric_stability(self):
+        """
+        方法用于获取大气稳定度。'env_params' 参数中必须包含以下 key - value
+            
+            'wind_volicity' - 建模时环境风速，单位：m/s。
+        
+        Parameters:
+            None
+        
+        Returns:
+            大气稳定程度。
+        
+        Raises:
+            AssertionError
+            KeyError
+        """
         env_params = self.get_environment_params()
         wind_volicity = env_params['wind_volicity']
         
@@ -422,6 +506,7 @@ class GasDiffusionModel(SecurityModel):
         
         srl = str(self.get_solar_radiation_level())
         
+        # 风速
         if 0 <= wind_volicity <= 1.9: row = 0
         elif 1.9 < wind_volicity <= 2.9: row = 1
         elif 2.9 < wind_volicity <= 4.9: row = 2
@@ -434,6 +519,24 @@ class GasDiffusionModel(SecurityModel):
         return atmospheric_stability
         
     def get_diffusion_param_coeffs(self, pgis=None, hdis=None):
+        """
+        方法用于获取气体扩散参数系数，包括 y 轴扩散参数系数和 z 轴扩散参数系数。
+        
+        Parameters:
+            'pgis' - python array-like 对象，计算地地理坐标 [经度，纬度]。
+            'hdis' - 下风向距离，单位：m。
+            
+        Returns:
+            python tuple 对象，
+            气体扩散参数系数，index=0。
+            下风向距离，index=1，单位：m。
+            
+        Raises:
+            AssertionError
+            
+        Note:
+            必须给定 gis 坐标或下风向距离。两者都指定时优先使用 hdis
+        """
         assert pgis or hdis, self.assert_info('pgis, hdis')
         if hdis: assert hdis > 0.0, self.assert_info('hdis')
         if pgis: assert (2 == len(pgis)) and (pgis[0] > 0.0) and (pgis[1] > 0.0), self.assert_info('pgis')
@@ -444,6 +547,7 @@ class GasDiffusionModel(SecurityModel):
         vdpcgs = dpcs[['alpha1', 'gama1']]
         ddpcgs = dpcs[['alpha2', 'gama2']]
         
+        # 计算下风向距离。
         x = hdis if hdis else calc_gisdistance(pgis)
         
         if 'A' == atmos_stat:
@@ -505,6 +609,24 @@ class GasDiffusionModel(SecurityModel):
         return vdpcg.tolist() + ddpcg.tolist(), x
     
     def calc_diffusion_parameters(self, pgis=None, hdis=None, freq=30):
+        """
+        方法用于计算扩散参数。
+        
+        Parameters:
+            'pgis' - 计算点 gis 坐标。
+            'hdis' - 垂直下风向轴的距离，单位：m。
+            'freq' - 数据采样频率，会影响 sigma_y 取值。
+            
+        Returns:
+            python tuple 对象，index=0：sigma_y，index=1：sigma_z
+            
+        Raises:
+            AssertionError
+            
+        Note:
+            必须给定 gis 坐标或下风向距离。两者都指定时优先使用 hdis。
+            30 <= freq < 6000
+        """
         assert 30 <= freq < 6000, self.assert_info('freq')
         
         results = self.get_diffusion_param_coeffs(pgis, hdis)
