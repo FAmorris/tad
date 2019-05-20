@@ -494,7 +494,7 @@ class PoolFire(FireModel):
 class PointSourceGasDiffusion(GasDiffusionModel):
     
     _MAT_NE_PARAMS = pd.Series()
-    _ENV_NE_PARAMS = pd.Series(['source_strength'])
+    _ENV_NE_PARAMS = pd.Series(['source_strength', 'wind_volicity'])
     
     def __init__(self, material, mat_params=pd.Series(), env_params=pd.Series()):
         if (not PointSourceGasDiffusion._ENV_NE_PARAMS.isin(env_params.index).all()):
@@ -513,7 +513,10 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             return env_params['source_strength']
     
     def calc_concentration(self, pgis=None, hdis=None, vdis=None, ddis=0.0, srch=0.0):
+        env_params = self.get_environment_params()
+        wind_volicity = env_params['wind_volicity']
         
+        assert wind_volicity > 0.0, self.assert_info('wind_volicity')
         assert pgis or vdis, self.assert_info('pgis, vdis')
         assert ddis >= 0.0, self.assert_info('ddis')
         assert srch >= 0.0, self.assert_info('srch')
@@ -521,7 +524,16 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         
         sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
         y = vdis if vdis else calc_gisdistance(pgis)
-        source_strength = calc_source_strength()
+        source_strength = self.calc_source_strength()
+        
+        a1 = source_strength / (2 * math.pi * wind_volicity * sigma_y * sigma_z)
+        a2 = -0.5 * math.pow(y / sigma_y, 2)
+        a3 = -0.5 * math.pow((ddis - srch) / sigma_z, 2)
+        a4 = -0.5 * math.pow((ddis + srch) / sigma_z, 2)
+        concentration = a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
+        self._add_result('concentration({}, {}, {})'.format(hdis, vdis, ddis), concentration)
+        
+        return concentration
      
     def fit(self): pass
     
@@ -537,7 +549,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
     def get_necessary_env_params():
         tmp1 = GasDiffusionModel.get_necessary_env_params()
         tmp2 = PointSourceGasDiffusion._ENV_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True)
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates() 
         
     def get_info(self):
         return super().get_info(title='point source gas diffusion model reports', width=80, v_width=40)
@@ -571,6 +583,18 @@ def module_test():
     rawoil.calc_heat_radiation_radius(strength=25000, eta=0.35)
     rawoil.calc_heat_radiation_radius(strength=12500, eta=0.35)
     print(rawoil.get_info())
+    
+    env_params = pd.Series({'wind_volicity': 1,
+                            'center_longtitude': 120.0,
+                            'center_latitude': 30.0,
+                            'total_cloudiness': 5,
+                            'low_cloudiness': 4,
+                            'source_strength': 1 * 1e6})
+    
+    h2 = PointSourceGasDiffusion('H2', env_params=env_params)
+    h2.calc_concentration(hdis=200, vdis=200)
+    print(h2.get_info())
 
-
-if '__main__' == __name__: module_test()
+if '__main__' == __name__: 
+    module_test()
+    # print(PointSourceGasDiffusion.get_necessary_env_params())

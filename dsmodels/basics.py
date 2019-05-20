@@ -502,7 +502,7 @@ class GasDiffusionModel(SecurityModel):
         self._add_result('alpha2', ddpcg['alpha2'])
         self._add_result('gama2', ddpcg['gama2'])
         
-        return vdpcg.to_list() + ddpcg.to_list()
+        return vdpcg.tolist() + ddpcg.tolist(), x
     
     def calc_diffusion_parameters(self, pgis=None, hdis=None, freq=30):
         assert 30 <= freq < 6000, self.assert_info('freq')
@@ -518,6 +518,8 @@ class GasDiffusionModel(SecurityModel):
         q = 0.2 if 0.5 < freq_h < 1 else 0.3
         
         sigma_y *= math.pow(freq_h, q)
+        self._add_result('sigma_y(m)', sigma_y)
+        self._add_result('sigma_z(m)', sigma_z)
         
         return sigma_y, sigma_z
     
