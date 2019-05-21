@@ -644,12 +644,12 @@ def module_test():
                             'source_strength': 2500})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-<<<<<<< HEAD
+
     h2.calc_concentration(hdis=100, vdis=100, ddis=2, srch=20)
-=======
+
     h2.calc_concentration(hdis=1000, vdis=0, ddis=0, srch=0)
     h2.calc_distribution(6)
->>>>>>> 292e39b0ab91cc4a944873b66147206ce97b3253
+
     print(h2.get_info())
     
 if '__main__' == __name__: 
