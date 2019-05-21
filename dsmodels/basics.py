@@ -537,7 +537,7 @@ class GasDiffusionModel(SecurityModel):
         Note:
             必须给定 gis 坐标或下风向距离。两者都指定时优先使用 hdis
         """
-        assert pgis or hdis, self.assert_info('pgis, hdis')
+        assert pgis or hdis >= 0, self.assert_info('pgis, hdis')
         if hdis: assert hdis > 0.0, self.assert_info('hdis')
         if pgis: assert (2 == len(pgis)) and (pgis[0] > 0.0) and (pgis[1] > 0.0), self.assert_info('pgis')
         
@@ -548,7 +548,7 @@ class GasDiffusionModel(SecurityModel):
         ddpcgs = dpcs[['alpha2', 'gama2']]
         
         # 计算下风向距离。
-        x = hdis if hdis else calc_gisdistance(pgis)
+        x = hdis if hdis >= 0 else calc_gisdistance(pgis)
         
         if 'A' == atmos_stat:
             if 0 <= x < 300:
