@@ -7,10 +7,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from basics import ExplosionModel, FireModel, GasDiffusionModel
+from base import ExplosionModel, FireModel, GasDiffusionModel
 from utils import calc_gisdistance
 
-class SteamCloudExplosion(ExplosionModel):
+class VaporCloudExplosion(ExplosionModel):
     """
     蒸汽云爆炸模型，可以用于计算蒸汽云质量、蒸汽云爆破能、蒸汽云爆炸 TNT 当量转换、
     蒸汽云冲击波超压计算、蒸汽云冲击波超压距离半径计算。
@@ -44,9 +44,8 @@ class SteamCloudExplosion(ExplosionModel):
         Raises:
             None
         """
-        
-        if (not SteamCloudExplosion._MAT_NE_PARAMS.isin(mat_params.index).all())\
-            or (not SteamCloudExplosion._ENV_NE_PARAMS.isin(env_params.index).all()):
+        if (not VaporCloudExplosion._MAT_NE_PARAMS.isin(mat_params.index).all())\
+            or (not VaporCloudExplosion._ENV_NE_PARAMS.isin(env_params.index).all()):
             raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
@@ -72,7 +71,6 @@ class SteamCloudExplosion(ExplosionModel):
         Raises:
         
         """
-        
         mat_params = self.get_material_params()
         mat_volume = mat_params['material_volume']
         mat_density = mat_params['material_density']
@@ -112,7 +110,6 @@ class SteamCloudExplosion(ExplosionModel):
                 'material_volume'  - 蒸汽云的体积，单位：m^3。
                 'material_density' - 蒸汽云的密度，单位：kg/m^3。
         """
-        
         mat_params = self.get_material_params()
         combustion_heat = mat_params['combustion_heat']
         
@@ -151,7 +148,6 @@ class SteamCloudExplosion(ExplosionModel):
             则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
             1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。
         """
-        
         env_params = self.get_environment_params()
         
         if 'tnt_explosive_energy' in self._nan_params:
@@ -181,7 +177,6 @@ class SteamCloudExplosion(ExplosionModel):
         Raises:
             'ZeroDivisionError' - 除数为 0 异常。
         """
-        
         import math
         
         assert x >= 0.0, self.assert_info('x')
@@ -210,7 +205,6 @@ class SteamCloudExplosion(ExplosionModel):
         Raises:
             
         """
-        
         import math
         
         assert p > 0.0, self.assert_info('p')
@@ -230,13 +224,13 @@ class SteamCloudExplosion(ExplosionModel):
     @staticmethod
     def get_necessary_mat_params():
         tmp1 = ExplosionModel.get_necessary_mat_params()
-        tmp2 = SteamCloudExplosion._MAT_NE_PARAMS.copy()
+        tmp2 = VaporCloudExplosion._MAT_NE_PARAMS.copy()
         return pd.concat([tmp1, tmp2], ignore_index=True)
     
     @staticmethod
     def get_necessary_env_params():
         tmp1 = ExplosionModel.get_necessary_env_params()
-        tmp2 = SteamCloudExplosion._ENV_NE_PARAMS.copy()
+        tmp2 = VaporCloudExplosion._ENV_NE_PARAMS.copy()
         return pd.concat([tmp1, tmp2], ignore_index=True)
     
     def get_info(self):
@@ -308,7 +302,6 @@ class PoolFire(FireModel):
             KeyError          - 键不存在异常。
             AssertError       - 模型参数空值断言异常。
         """
-        
         mat_params = self.get_material_params()
         env_params = self.get_environment_params()
         boiling_point = mat_params['boiling_point']
@@ -515,7 +508,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         if env_params['source_strength'] > 0.0:
             return env_params['source_strength']
     
-    def calc_concentration(self, pgis=None, hdis=None, vdis=None, ddis=0, srch=0):
+    def calc_concentration(self, pgis=None, hdis=-1, vdis=-1, ddis=0, srch=0):
         """
         mg/m^3
         """
@@ -523,10 +516,11 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         wind_volicity = env_params['wind_volicity']
         
         assert wind_volicity > 0, self.assert_info('wind_volicity')
-        assert not (pgis is None) or not (vdis is None), self.assert_info('pgis, vdis')
+        assert pgis or (vdis >= 0), self.assert_info('pgis, vdis')
         assert ddis >= 0, self.assert_info('ddis')
         assert srch >= 0, self.assert_info('srch')
-        if vdis >= 0: assert vdis >= 0, self.assert_info('vdis')
+        
+        if 0 == hdis: hdis += 1e-32
         
         sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
         y = vdis if vdis >= 0 else calc_gisdistance(pgis)
@@ -556,23 +550,6 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         assert wind_volicity > 0.0, self.assert_info('wind_volicity')
         
         source_strength = self.calc_source_strength()
-        
-        # hdises = [0, 300, 500, 1000, 2000, 10000]
-        # for x in hdises:
-            # alpha1, gama1, alpha2, gama2 = self.get_diffusion_param_coeffs(hdis=x)[0]
-        
-            # if 0 == srch:
-                # tmp1 = source_strength / (c * math.pi * wind_volicity * alpha1 * alpha2)
-                # tmp2 = 1 / (gama1 + gama2)
-                # hdis = math.pow(tmp1, tmp2)
-            # else: hdis = 0.0
-        times = 0
-        for i in range(1, 10000, 5):
-            if abs(self.calc_concentration(hdis=0.1 * i, vdis=0) - c) < 0.5:
-                times += 1
-                if 2 == times: 
-                    hdis = i
-                    break
         
         if area:
             sigma_y, sigma_z = self.calc_diffusion_parameters(hdis=hdis)
@@ -614,7 +591,7 @@ def module_test():
                                 'material_weight': None})
     gas_env_params = pd.Series({'tnt_explosive_energy': 4675})
     
-    gas = SteamCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
+    gas = VaporCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
     gas.calc_wave_radius(0.1)
     print(gas.get_info())
     
@@ -641,16 +618,19 @@ def module_test():
                             'center_latitude': 30.6650761821,
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
-                            'source_strength': 2500})
+                            'source_strength': 25000})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-
-    h2.calc_concentration(hdis=100, vdis=100, ddis=2, srch=20)
-
-    h2.calc_concentration(hdis=1000, vdis=0, ddis=0, srch=0)
-    h2.calc_distribution(6)
-
+    res = []
+    for x in range(0, 100000, 10):
+        res.append(h2.calc_concentration(hdis=x, vdis=0, srch=100))
+    
     print(h2.get_info())
+    
+    import matplotlib.pyplot as plt
+    
+    plt.plot(range(0, 100000, 10), res)
+    plt.show()
     
 if '__main__' == __name__: 
     module_test()

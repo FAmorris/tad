@@ -14,7 +14,7 @@ from utils import calc_gisdistance
 class SecurityModel(ABC):
     """
     安防模型抽象基类，定义物质名称、物质物理参数、环境参数。所有子类需要实现以下抽象方法
-    'fit' - 方法用于拟合某个区域的安全态势。
+        'fit'  - 方法用于拟合某个区域的安全态势。
         'plot' - 方法用于绘制区域热力图。
     """
     _MAT_NE_PARAMS = pd.Series()
@@ -424,8 +424,8 @@ class GasDiffusionModel(SecurityModel):
         lgt = env_params['center_longtitude']
         lat = env_params['center_latitude']
         
-        assert lat > 0.0, self.assert_info('center_latitude')
-        assert lgt > 0.0, self.assert_info('center_longtitude')
+        assert lat >= 0, self.assert_info('center_latitude')
+        assert lgt >= 0, self.assert_info('center_longtitude')
         
         declination = self.calc_declination()
         tmp = 15 * datetime.now().hour + lgt - 300
@@ -456,8 +456,8 @@ class GasDiffusionModel(SecurityModel):
         tc = env_params['total_cloudiness']
         lc = env_params['low_cloudiness']
         
-        assert tc > 0.0, self.assert_info('total_cloudiness')
-        assert lc > 0.0, self.assert_info('low_cloudiness')
+        assert tc >= 0, self.assert_info('total_cloudiness')
+        assert lc >= 0, self.assert_info('low_cloudiness')
         assert tc >= lc, self.assert_info('total_cloudiness, low_cloudiness')
         hour = datetime.now().hour
         
@@ -469,7 +469,7 @@ class GasDiffusionModel(SecurityModel):
         elif (tc >= 8) and (lc >= 8): row = 4
         
         # 日间
-        if 7 <= hour <= 19:
+        if 7 <= hour < 19:
             solar_angle = self.calc_solar_angle()
             
             if solar_angle <= 15: col = 1
@@ -507,7 +507,7 @@ class GasDiffusionModel(SecurityModel):
         srl = str(self.get_solar_radiation_level())
         
         # 风速
-        if 0 <= wind_volicity <= 1.9: row = 0
+        if 0 < wind_volicity <= 1.9: row = 0
         elif 1.9 < wind_volicity <= 2.9: row = 1
         elif 2.9 < wind_volicity <= 4.9: row = 2
         elif 4.9 < wind_volicity <= 5.9: row = 3
@@ -518,7 +518,7 @@ class GasDiffusionModel(SecurityModel):
         
         return atmospheric_stability
         
-    def get_diffusion_param_coeffs(self, pgis=None, hdis=None):
+    def get_diffusion_param_coeffs(self, pgis=None, hdis=-1):
         """
         方法用于获取气体扩散参数系数，包括 y 轴扩散参数系数和 z 轴扩散参数系数。
         
@@ -538,8 +538,7 @@ class GasDiffusionModel(SecurityModel):
             必须给定 gis 坐标或下风向距离。两者都指定时优先使用 hdis
         """
         assert pgis or hdis >= 0, self.assert_info('pgis, hdis')
-        if hdis: assert hdis > 0.0, self.assert_info('hdis')
-        if pgis: assert (2 == len(pgis)) and (pgis[0] > 0.0) and (pgis[1] > 0.0), self.assert_info('pgis')
+        if pgis: assert (2 == len(pgis)) and (pgis[0] >= 0.0) and (pgis[1] >= 0.0), self.assert_info('pgis')
         
         atmos_stat = self.get_atmospheric_stability()
         dpct = self._get_dpct()
@@ -551,50 +550,50 @@ class GasDiffusionModel(SecurityModel):
         x = hdis if hdis >= 0 else calc_gisdistance(pgis)
         
         if 'A' == atmos_stat:
-            if 0 <= x < 300:
+            if 0 < x <= 300:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[0]
-            elif 300 <= x < 500:
+            elif 300 < x <= 500:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[1]
-            elif 500 <= x < 1000:
+            elif 500 < x <= 1000:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[2]
             else:
                 vdpcg = vdpcgs.loc[2]
                 ddpcg = ddpcgs.loc[2]
         elif atmos_stat in ('A~B', 'B', 'B~C'):
-            if 0 <= x < 500:
+            if 0 < x <= 500:
                 vdpcg = vdpcgs.loc[0]
                 ddpcg = ddpcgs.loc[0]
-            elif 500 <= x < 1000:
+            elif 500 < x <= 1000:
                 vdpcg = vdpcgs.loc[0]
                 ddpcg = ddpcgs.loc[1]
             else:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[1]
         elif 'C' == atmos_stat:
-            if 0 <= x < 1000:
+            if 0 < x <= 1000:
                 vdpcg = vdpcgs.loc[0]
                 ddpcg = ddpcgs.loc[1]
             else:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[1]
         elif atmos_stat in ('D', 'E', 'E~F', 'F'):
-            if 0 <= x < 1000:
+            if 0 < x <= 1000:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[0]
-            elif 1000 <= x < 10000:
+            elif 1000 < x <= 10000:
                 vdpcg = vdpcgs.loc[2]
                 ddpcg = ddpcgs.loc[1]
             else:
                 vdpcg = vdpcgs.loc[2]
                 ddpcg = ddpcgs.loc[2]
         else:
-            if 0 <= x < 1000:
+            if 0 < x <= 1000:
                 vdpcg = vdpcgs.loc[1]
                 ddpcg = ddpcgs.loc[0]
-            elif 1000 <= x < 2000:
+            elif 1000 < x <= 2000:
                 vdpcg = vdpcgs.loc[2]
                 ddpcg = ddpcgs.loc[1]
             else:
@@ -608,7 +607,7 @@ class GasDiffusionModel(SecurityModel):
         
         return vdpcg.tolist() + ddpcg.tolist(), x
     
-    def calc_diffusion_parameters(self, pgis=None, hdis=None, freq=30):
+    def calc_diffusion_parameters(self, pgis=None, hdis=-1, freq=30):
         """
         方法用于计算扩散参数。
         
@@ -637,9 +636,9 @@ class GasDiffusionModel(SecurityModel):
         sigma_y = dpcgs[1] * math.pow(x, dpcgs[0])
         sigma_z = dpcgs[3] * math.pow(x, dpcgs[2])
         
-        q = 0.2 if 0.5 < freq_h < 1 else 0.3
+        q = 0.2 if 0.5 <= freq_h < 1 else 0.3
         
-        sigma_y *= math.pow(freq_h, q)
+        sigma_y *= math.pow(freq_h / 0.5, q)
         self._add_result('sigma_y(m)', sigma_y)
         self._add_result('sigma_z(m)', sigma_z)
         
