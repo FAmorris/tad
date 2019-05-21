@@ -553,7 +553,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
     def get_necessary_mat_params():
         tmp1 = GasDiffusionModel.get_necessary_mat_params()
         tmp2 = PointSourceGasDiffusion._MAT_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates() 
     
     @staticmethod
     def get_necessary_env_params():
@@ -595,15 +595,15 @@ def module_test():
     rawoil.calc_heat_radiation_radius(strength=12500, eta=0.35)
     print(rawoil.get_info())
     
-    env_params = pd.Series({'wind_volicity': 3,
+    env_params = pd.Series({'wind_volicity': 1.5,
                             'center_longtitude': 121.0212504359,
                             'center_latitude': 30.6650761821,
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
-                            'source_strength': 1e5})
+                            'source_strength': 2500})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-    h2.calc_concentration(hdis=100, vdis=100, ddis=2, srch=5)
+    h2.calc_concentration(hdis=100, vdis=100, ddis=2, srch=20)
     print(h2.get_info())
     
 if '__main__' == __name__: 
