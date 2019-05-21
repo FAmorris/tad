@@ -523,13 +523,13 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         wind_volicity = env_params['wind_volicity']
         
         assert wind_volicity > 0, self.assert_info('wind_volicity')
-        assert pgis or vdis, self.assert_info('pgis, vdis')
+        assert not (pgis is None) or not (vdis is None), self.assert_info('pgis, vdis')
         assert ddis >= 0, self.assert_info('ddis')
         assert srch >= 0, self.assert_info('srch')
-        if vdis: assert vdis >= 0, self.assert_info('vdis')
+        if vdis >= 0: assert vdis >= 0, self.assert_info('vdis')
         
         sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
-        y = vdis if vdis else calc_gisdistance(pgis)
+        y = vdis if vdis >= 0 else calc_gisdistance(pgis)
         source_strength = self.calc_source_strength()
         
         a1 = source_strength / (math.pi * wind_volicity * sigma_y * sigma_z)
@@ -537,13 +537,54 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         a3 = -0.5 * math.pow((ddis - srch) / sigma_z, 2)
         a4 = -0.5 * math.pow((ddis + srch) / sigma_z, 2)
         
-        if (0 == srch) or (0 == ddis): 
+        if ((0 == srch) or (0 == ddis)) and (0 != vdis): 
             concentration = a1 * math.exp(a2 + a4)
+        elif (0 == vdis) and (0 == ddis) and (0 != srch):
+            concentration = a1 * math.exp(a4)
+        elif (0 == vdis) and (0 == ddis) and (0 == srch):
+            concentration = a1
         else:
             concentration = 0.5 * a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
         self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), concentration)
         
         return concentration
+        
+    def calc_distribution(self, c, srch=0, area=False):
+        env_params = self.get_environment_params()
+        wind_volicity = env_params['wind_volicity']
+        assert srch >= 0, self.assert_info('srch')
+        assert wind_volicity > 0.0, self.assert_info('wind_volicity')
+        
+        source_strength = self.calc_source_strength()
+        
+        # hdises = [0, 300, 500, 1000, 2000, 10000]
+        # for x in hdises:
+            # alpha1, gama1, alpha2, gama2 = self.get_diffusion_param_coeffs(hdis=x)[0]
+        
+            # if 0 == srch:
+                # tmp1 = source_strength / (c * math.pi * wind_volicity * alpha1 * alpha2)
+                # tmp2 = 1 / (gama1 + gama2)
+                # hdis = math.pow(tmp1, tmp2)
+            # else: hdis = 0.0
+        times = 0
+        for i in range(1, 10000, 5):
+            if abs(self.calc_concentration(hdis=0.1 * i, vdis=0) - c) < 0.5:
+                times += 1
+                if 2 == times: 
+                    hdis = i
+                    break
+        
+        if area:
+            sigma_y, sigma_z = self.calc_diffusion_parameters(hdis=hdis)
+            tmp1 = math.log(1e6 * source_strength / (wind_volicity * c * math.pi * sigma_y * sigma_z))
+            tmp2 = 0.5 * math.pow(srch / sigma_z, 2)
+            vdis = math.sqrt(2 * math.pow(sigma_y, 2) * (tmp1 - tmp2))
+            self._add_result('area({}mg/m^3) h:'.format(c), hdis)
+            self._add_result('area({}mg/m^3) v:'.format(c), vdis)
+            return hdis, vdis
+        self._add_result('radius({}mg/m^3):'.format(c), hdis)
+        
+        return hdis
      
     def fit(self): pass
     
@@ -603,7 +644,8 @@ def module_test():
                             'source_strength': 1e5})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-    h2.calc_concentration(hdis=100, vdis=100, ddis=2, srch=5)
+    h2.calc_concentration(hdis=1000, vdis=0, ddis=0, srch=0)
+    h2.calc_distribution(6)
     print(h2.get_info())
     
 if '__main__' == __name__: 
