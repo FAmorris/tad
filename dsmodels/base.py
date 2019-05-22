@@ -336,7 +336,7 @@ class GasDiffusionModel(SecurityModel):
                                 'center_latitude', 
                                 'total_cloudiness',
                                 'low_cloudiness',
-                                'wind_volicity'])
+                                'wind_speed'])
     
     def __init__(self, material='', mat_params=pd.Series(), env_params=pd.Series()):
         """
@@ -349,7 +349,7 @@ class GasDiffusionModel(SecurityModel):
                 'center_latitude'   - 区域纬度，单位：°
                 'total_cloudiness'  - 建模时环境总云量。
                 'low_cloudiness'    - 建模时环境低云量。
-                'wind_volicity'     - 建模时环境风速，单位：m/s。
+                'wind_speed'     - 建模时环境风速，单位：m/s。
         
         Raises:
             KeyError
@@ -487,7 +487,7 @@ class GasDiffusionModel(SecurityModel):
         """
         方法用于获取大气稳定度。'env_params' 参数中必须包含以下 key - value
             
-            'wind_volicity' - 建模时环境风速，单位：m/s。
+            'wind_speed' - 建模时环境风速，单位：m/s。
         
         Parameters:
             None
@@ -500,18 +500,18 @@ class GasDiffusionModel(SecurityModel):
             KeyError
         """
         env_params = self.get_environment_params()
-        wind_volicity = env_params['wind_volicity']
+        wind_speed = env_params['wind_speed']
         
-        assert wind_volicity > 0.0, self.assert_info('wind_volicity')
+        assert wind_speed > 0.0, self.assert_info('wind_speed')
         
         srl = str(self.get_solar_radiation_level())
         
         # 风速
-        if 0 < wind_volicity <= 1.9: row = 0
-        elif 1.9 < wind_volicity <= 2.9: row = 1
-        elif 2.9 < wind_volicity <= 4.9: row = 2
-        elif 4.9 < wind_volicity <= 5.9: row = 3
-        elif wind_volicity >= 6.0: row = 4
+        if 0 < wind_speed <= 1.9: row = 0
+        elif 1.9 < wind_speed <= 2.9: row = 1
+        elif 2.9 < wind_speed <= 4.9: row = 2
+        elif 4.9 < wind_speed <= 5.9: row = 3
+        elif wind_speed >= 6.0: row = 4
         
         atmospheric_stability = self._get_ast().iloc[row][srl]
         self._add_result('atmospheric_stability', atmospheric_stability)
@@ -663,7 +663,7 @@ class GasDiffusionModel(SecurityModel):
 def module_test():
     import pandas as pd
     
-    env_params = pd.Series({'wind_volicity': 1,
+    env_params = pd.Series({'wind_speed': 1,
                             'center_longtitude': 120.0,
                             'center_latitude': 30.0,
                             'total_cloudiness': 5,

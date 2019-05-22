@@ -225,13 +225,13 @@ class VaporCloudExplosion(ExplosionModel):
     def get_necessary_mat_params():
         tmp1 = ExplosionModel.get_necessary_mat_params()
         tmp2 = VaporCloudExplosion._MAT_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True)
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     @staticmethod
     def get_necessary_env_params():
         tmp1 = ExplosionModel.get_necessary_env_params()
         tmp2 = VaporCloudExplosion._ENV_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True)
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     def get_info(self):
         return super().get_info('steam cloud explosion model reports', width=80, v_width=40)
@@ -473,13 +473,13 @@ class PoolFire(FireModel):
     def get_necessary_mat_params():
         tmp1 = FireModel.get_necessary_mat_params()
         tmp2 = PoolFire._MAT_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True)
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     @staticmethod
     def get_necessary_env_params():
         tmp1 = FireModel.get_necessary_env_params()
         tmp2 = PoolFire._ENV_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True)
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     def get_info(self):
         return super().get_info(title='pool fire model reports', width=80, v_width=40)
@@ -487,9 +487,29 @@ class PoolFire(FireModel):
         
 class PointSourceGasDiffusion(GasDiffusionModel):
     _MAT_NE_PARAMS = pd.Series()
-    _ENV_NE_PARAMS = pd.Series(['source_strength', 'wind_volicity'])
-    
+    _ENV_NE_PARAMS = pd.Series(['source_strength', 'wind_speed'])
+    """
+    该类实现了连续点源高斯气体扩散模型，该类继承 'GasDiffusionModel' 类。模型提供
+    了气体扩散区域垂直下风向轴的距离计算、浓度计算、浓度分布计算。
+    """
     def __init__(self, material, mat_params=pd.Series(), env_params=pd.Series()):
+    """
+    构造方法。
+    
+    Parameters:
+        'mat_params' - pandas Series 对象，扩散气体固有属性集合，目前可不提供。
+        'env_params' - pandas Series 对象，扩散气体所在环境属性集合，必须包含以下 key - value
+            
+            'wind_speed'        - 区域风速，单位：m/s。默认采样频率 0.5h。
+            'center_longtitude' - 事故点经度。
+            'center_latitude'   - 事故点纬度。
+            'total_cloudiness'  - 建模时总云量，无量纲。
+            'low_cloudiness'    - 建模时低云量，无量纲。
+            'source_strength'   - 泄露点的源强，单位：g/s
+    
+    Raises:
+        KeyError
+    """
         if (not PointSourceGasDiffusion._ENV_NE_PARAMS.isin(env_params.index).all()):
             raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
@@ -507,26 +527,58 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         
         if env_params['source_strength'] > 0.0:
             return env_params['source_strength']
+            
+    def calc_vertical_distance(self, c, t, hdis, srch=0):
+        """
+        方法用于计算气体扩散区域垂直风向距离。
+        
+        Parameters:
+            'c' - 目标浓度，单位：mg/m^3。
+            't' - 时间发生后的时间，单位：s。
+            'hdis' - 事故点水平方向距离的距离，单位：m。
+            'srch' - 点源有效高度，单位：m。
+        
+        Returns:
+            float 标量，气体扩散区域垂直风向距离，单位：m。
+        
+        Raises:
+            AssertError
+            
+        """
+        assert c >= 0, self.assert_info('c')
+        assert t > 0, self.assert_info('t')
+        
+        env_params = self.get_environment_params()
+        wind_speed = env_params['wind_speed']
+        source_strength = self.calc_source_strength()
+        concentration = c + 1e-32
+        weight = source_strength * t
+        sigma_y, sigma_z = self.calc_diffusion_parameters(hdis=hdis)
+        tmp1 = math.log(1e6 * weight / (wind_speed * c * math.pi * sigma_y * sigma_z))
+        tmp2 = 0.5 * math.pow(srch / sigma_z, 2)
+        b = math.sqrt(2 * math.pow(sigma_y, 2) * (tmp1 - tmp2))
+        self._add_result('area({}mg/m^3) b:'.format(c), b)
+        
+        return b
     
-    def calc_concentration(self, pgis=None, hdis=-1, vdis=-1, ddis=0, srch=0):
+    def calc_concentration(self, pgis=None, hdis=-1, vdis=0, ddis=0, srch=0, keep=True):
         """
         mg/m^3
         """
-        env_params = self.get_environment_params()
-        wind_volicity = env_params['wind_volicity']
-        
-        assert wind_volicity > 0, self.assert_info('wind_volicity')
-        assert pgis or (vdis >= 0), self.assert_info('pgis, vdis')
         assert ddis >= 0, self.assert_info('ddis')
         assert srch >= 0, self.assert_info('srch')
-        
-        if 0 == hdis: hdis += 1e-32
+        assert vdis >= 0, self.assert_info('vdis')
+        env_params = self.get_environment_params()
+        wind_speed = env_params['wind_speed']
+        assert wind_speed > 0, self.assert_info('wind_speed')
+
+        hdis += 1e-32
+        y = vdis
         
         sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
-        y = vdis if vdis >= 0 else calc_gisdistance(pgis)
         source_strength = self.calc_source_strength()
         
-        a1 = source_strength / (math.pi * wind_volicity * sigma_y * sigma_z)
+        a1 = source_strength / (math.pi * wind_speed * sigma_y * sigma_z)
         a2 = -0.5 * math.pow(y / sigma_y, 2)
         a3 = -0.5 * math.pow((ddis - srch) / sigma_z, 2)
         a4 = -0.5 * math.pow((ddis + srch) / sigma_z, 2)
@@ -539,29 +591,42 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             concentration = a1
         else:
             concentration = 0.5 * a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
-        self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), concentration)
+        if keep:
+            self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), concentration)
         
         return concentration
         
-    def calc_distribution(self, c, srch=0, area=False):
-        env_params = self.get_environment_params()
-        wind_volicity = env_params['wind_volicity']
+    def calc_distribution(self, c, t, ddis=0, srch=0, step=10, cs=False):
         assert srch >= 0, self.assert_info('srch')
-        assert wind_volicity > 0.0, self.assert_info('wind_volicity')
+        assert c >= 0, self.assert_info('c')
+        assert t > 0, self.assert_info('t')
+        env_params = self.get_environment_params()
+        wind_speed = env_params['wind_speed']
+        assert wind_speed > 0.0, self.assert_info('wind_speed')
         
-        source_strength = self.calc_source_strength()
+        hdis_max = math.ceil(wind_speed * t)
+        num = hdis_max // step
+        hdises = np.linspace(0, hdis_max, num + 1)
+        points = pd.Series(hdises, index=hdises)
+        concentrations = points.apply(lambda x: self.calc_concentration(hdis=x, ddis=ddis, srch=srch, keep=False))
+        concentrations[concentrations < 1e-6] = 0.0
+        xm = concentrations.idxmax()
+        cm = concentrations[xm]
         
-        if area:
-            sigma_y, sigma_z = self.calc_diffusion_parameters(hdis=hdis)
-            tmp1 = math.log(1e6 * source_strength / (wind_volicity * c * math.pi * sigma_y * sigma_z))
-            tmp2 = 0.5 * math.pow(srch / sigma_z, 2)
-            vdis = math.sqrt(2 * math.pow(sigma_y, 2) * (tmp1 - tmp2))
-            self._add_result('area({}mg/m^3) h:'.format(c), hdis)
-            self._add_result('area({}mg/m^3) v:'.format(c), vdis)
-            return hdis, vdis
-        self._add_result('radius({}mg/m^3):'.format(c), hdis)
-        
-        return hdis
+        if c < cm:
+            target_scope = concentrations[concentrations >= c]
+            x1 = target_scope.index.values.min()
+            x2 = target_scope.index.values.max()
+            a = (x2 - x1) / 2
+            self._add_result('area({}mg/m^3) a:'.format(c), a)
+            b = self.calc_vertical_distance(c=c, t=t, hdis=a, srch=srch)
+        else:
+            a = b = x1 = x2 = None
+        results = [(a, b), (x1, x2), (xm, cm)]
+        if cs:
+            results.append(concentrations)
+            
+        return results
      
     def fit(self): pass
     
@@ -613,24 +678,17 @@ def module_test():
     rawoil.calc_heat_radiation_radius(strength=12500, eta=0.35)
     print(rawoil.get_info())
     
-    env_params = pd.Series({'wind_volicity': 1.5,
-                            'center_longtitude': 121.0212504359,
-                            'center_latitude': 30.6650761821,
+    env_params = pd.Series({'wind_speed': 1.5,
+                            'center_longtitude': 121.0583333,
+                            'center_latitude': 30.62083333,
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
                             'source_strength': 25000})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-    res = []
-    for x in range(0, 100000, 10):
-        res.append(h2.calc_concentration(hdis=x, vdis=0, srch=100))
-    
+    res = h2.calc_distribution(30, 3600, srch=5, step=1)
     print(h2.get_info())
-    
-    import matplotlib.pyplot as plt
-    
-    plt.plot(range(0, 100000, 10), res)
-    plt.show()
+    print(res)
     
 if '__main__' == __name__: 
     module_test()
