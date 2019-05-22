@@ -15,12 +15,12 @@ class VaporCloudExplosion(ExplosionModel):
     蒸汽云爆炸模型，可以用于计算蒸汽云质量、蒸汽云爆破能、蒸汽云爆炸 TNT 当量转换、
     蒸汽云冲击波超压计算、蒸汽云冲击波超压距离半径计算。
     """
-    _MAT_NE_PARAMS = pd.Series(['material_volume',
-                                'material_density',
-                                'combustion_heat',
-                                'material_weight'])
+    _MAT_NE_PARAMS = pd.Series(['material_density',
+                                'combustion_heat'])
     
-    _ENV_NE_PARAMS = pd.Series(['tnt_explosive_energy'])
+    _ENV_NE_PARAMS = pd.Series(['tnt_explosive_energy',
+                                'material_volume',
+                                'material_weight'])
     
     def __init__(self, material, mat_params, env_params):
         """
@@ -28,21 +28,31 @@ class VaporCloudExplosion(ExplosionModel):
         
         Parameters:
             material   - 燃烧物质名称。
-            mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下 key - value
-            
-                'material_volume'  - 蒸汽云的体积，单位：m^3。
+            mat_params - pandas Series 对象，燃烧物质相关参数。包含以下 key - value
                 'material_density' - 蒸汽云的密度，单位：kg/m^3。
-                         
+                'combustion_heat'  - 蒸汽云对应物质的燃烧热，单位：kJ/m^3。        
+                
             env_params - pandas Series 对象，环境参数。可包含以下键值对
-            
+                'material_weight'      - 泄露的质量，单位：kg。
+                'material_volume'      - 泄露的体积，单位：m^3。
                 'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。若指定该参数，
                                          则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
                                          1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。 
-        Returns:
-            None
-        
         Raises:
-            None
+            KeyError
+            
+        Note:
+            如果在构造函数的 'env_params' 参数中直接指定以下 key - value
+                'material_weight' - 蒸汽云对应的物质质量，单位：kg。
+                
+            则可以省略以下 key
+                'material_volume'  - 蒸汽云的体积，单位：m^3。
+                'material_density' - 蒸汽云的密度，单位：kg/m^3。
+                
+            如果构造函数的参数 'env_params' 中指定以下 key - value
+                'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。
+                
+            则采用上述指定值计算，否则使用默认值 4500 kJ/kg。1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。
         """
         if (not VaporCloudExplosion._MAT_NE_PARAMS.isin(mat_params.index).all())\
             or (not VaporCloudExplosion._ENV_NE_PARAMS.isin(env_params.index).all()):
@@ -57,10 +67,7 @@ class VaporCloudExplosion(ExplosionModel):
     
     def calc_material_weight(self):
         """
-        方法用于计算蒸汽云对应的质量，构造函数中的 'mat_params' 
-        参数需要包含以下键值对
-            'material_volume'  - 蒸汽云的体积，单位：m^3。
-            'material_density' - 蒸汽云的密度，单位：kg/m^3。
+        方法用于计算蒸汽云对应的质量。
             
         Parameters:
             None
@@ -69,12 +76,15 @@ class VaporCloudExplosion(ExplosionModel):
             蒸汽云对应的质量，单位：kg。
         
         Raises:
-        
+            AssertionError。
         """
+         
+        env_params = self.get_environment_params()
+        if env_params['material_weight'] > 0:
+            return env_params['material_weight']
         mat_params = self.get_material_params()
-        mat_volume = mat_params['material_volume']
+        mat_volume = env_params['material_volume']
         mat_density = mat_params['material_density']
-        
         assert mat_volume > 0.0, self.assert_info('material_volume')
         assert mat_density > 0.0, self.assert_info('material_density')
         
@@ -85,11 +95,7 @@ class VaporCloudExplosion(ExplosionModel):
         
     def calc_explosive_energy(self, alpha=0.04, beta=1.8):
         """
-        方法用于计算蒸汽云爆炸产生的爆破能。构造函数中的 'mat_params' 参数需要包含以下 key - value
-        
-            'material_volume'  - 蒸汽云的体积，单位：m^3。
-            'material_density' - 蒸汽云的密度，单位：kg/m^3。
-            'combustion_heat'  - 蒸汽云对应物质的燃烧热，单位：kJ/m^3。
+        方法用于计算蒸汽云爆炸产生的爆破能。
         
         Parameters:
             alpha - TNT 当量系数，0.0002 ≤ alpha ≤ 0.149，默认 alpha = 0.04。
@@ -99,28 +105,17 @@ class VaporCloudExplosion(ExplosionModel):
             蒸汽云爆炸产生的爆破能。单位：kJ。
         
         Raises:
-        
+            AssertionError。
+            
         Notes:
-            如果在构造函数的 'env_params' 参数中直接指定以下 key - value
-            
-                'material_weight' - 蒸汽云对应的物质质量，单位：kg。
-                
-            则可以省略以下 key
-            
-                'material_volume'  - 蒸汽云的体积，单位：m^3。
-                'material_density' - 蒸汽云的密度，单位：kg/m^3。
+
         """
+        assert (alpha > 0.0) and (beta > 0.0), self.assert_info('alpha, beta')
         mat_params = self.get_material_params()
         combustion_heat = mat_params['combustion_heat']
-        
         assert combustion_heat > 0.0, self.assert_info('combustion_heat')
-        assert (alpha > 0.0) and (beta > 0.0), self.assert_info('alpha, beta')
-        
-        if 'material_weight' in self._nan_params:
-            mat_weight = self.calc_material_weight()
-        else:
-            mat_weight = mat_params['material_weight']
-        
+
+        mat_weight = self.calc_material_weight()
         explosive_energy = alpha * beta * combustion_heat * mat_weight
         self._add_result('explosive_energy(kJ)', explosive_energy)
         self._add_environment_param('alpha', alpha)
@@ -140,13 +135,10 @@ class VaporCloudExplosion(ExplosionModel):
             蒸汽云爆炸时的 TNT 当量，单位：kg。
             
         Raise:
-        
+            AssertionError。
+            
         Notes:
-            如果构造函数的参数 'env_params' 中包含以下 key - value
-                'tnt_explosive_energy' - 1kg TNT 爆炸产生的爆破能，单位：kJ/kg。
-                
-            则采用上述指定值计算，否则使用默认值 4500 kJ/kg。
-            1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。
+            
         """
         env_params = self.get_environment_params()
         
@@ -176,10 +168,9 @@ class VaporCloudExplosion(ExplosionModel):
             
         Raises:
             'ZeroDivisionError' - 除数为 0 异常。
+            'AssertionError'。
         """
-        import math
-        
-        assert x >= 0.0, self.assert_info('x')
+        assert x > 0.0, self.assert_info('x')
         
         tnt_weight = self.calc_turn_tnt(alpha, beta)
         relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
@@ -205,8 +196,6 @@ class VaporCloudExplosion(ExplosionModel):
         Raises:
             
         """
-        import math
-        
         assert p > 0.0, self.assert_info('p')
         
         tnt_weight = self.calc_turn_tnt(alpha, beta)
@@ -259,14 +248,13 @@ class PoolFire(FireModel):
         Parameters:
             material   - 燃烧物质名称。
             mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下键值对
-                
                 'boiling_point'          - 沸点，单位：K。
                 'combustion_heat'        - 燃烧热，单位：J/kg。
-                'specific_heat_capacity' - 定压比热容，单位：J/(kg·K)。
                 'gasification_heat'      - 气化热，单位：J/kg。
+                'specific_heat_capacity' - 定压比热容，单位：J/(kg·K)。
+                'burning_speed'          - 燃烧速度，单位：kg/(m^2·s)。
                          
             env_params - pandas Series 对象，环境参数。至少包含以下键值对
-            
                 'pool_radius' - 液池半径。单位：m。
                 'env_temp'    - 环境温度。单位：K。
                 'air_density' - 事故点周围空气密度，单位：kg/m^3。
@@ -303,18 +291,21 @@ class PoolFire(FireModel):
             AssertError       - 模型参数空值断言异常。
         """
         mat_params = self.get_material_params()
+        if mat_params['burning_speed'] > 0: 
+            return mat_params['burning_speed']
         env_params = self.get_environment_params()
-        boiling_point = mat_params['boiling_point']
         combustion_heat = mat_params['combustion_heat']
         specific_heat_capacity = mat_params['specific_heat_capacity']
         gasification_heat = mat_params['gasification_heat']
-        env_temp = env_params['env_temp']
         
-        assert not (boiling_point is np.nan), self.assert_info('boiling_point')
+        assert not 'boiling_point' in self._nan_params, self.assert_info('boiling_point')
         assert combustion_heat > 0.0, self.assert_info('combustion_heat')
         assert specific_heat_capacity > 0.0, self.assert_info('specific_heat_capacity')
         assert gasification_heat > 0.0, self.assert_info('gasification_heat')
-        assert not (env_temp is np.nan), self.assert_info('env_temp')
+        assert not 'env_temp' in self._nan_params, self.assert_info('env_temp')
+        
+        boiling_point = mat_params['boiling_point']
+        env_temp = env_params['env_temp']
         
         delta_temp = boiling_point - env_temp
         
@@ -323,7 +314,7 @@ class PoolFire(FireModel):
         else:
             burning_speed = (1e-3 * combustion_heat) / gasification_heat
         
-        self._add_result('burning_speed', burning_speed)
+        self._add_result('burning_speed(kg/(m^2·s))', burning_speed)
         return burning_speed
         
     def calc_flame_height(self):
@@ -338,10 +329,8 @@ class PoolFire(FireModel):
             
         Raises:
             ZeroDivisionError - 除数为 0 异常。
-            AssertError       - 模型参数空值断言异常。
+            AssertionError    - 模型参数空值断言异常。
         """
-        import math
-        
         mat_params = self.get_material_params()
         env_params = self.get_environment_params()
         air_density = env_params['air_density']
@@ -350,12 +339,7 @@ class PoolFire(FireModel):
         assert air_density > 0.0, self.assert_info('air_density')
         assert pool_radius > 0.0, self.assert_info('pool_radius')
         
-        if 'burning_speed' in self._nan_params:
-            burning_speed = self.calc_burning_speed()
-        else:
-            burning_speed = mat_params['burning_speed']
-            assert burning_speed > 0.0, self.assert_info('burning_speed')
-        
+        burning_speed = self.calc_burning_speed()
         tmp1 = burning_speed / (air_density * math.sqrt(19.6 * pool_radius))
         flame_height = 84 * pool_radius * math.pow(tmp1, 0.6)
         
@@ -378,8 +362,6 @@ class PoolFire(FireModel):
             KeyError          - 键不存在异常。
             AssertError       - 模型参数空值断言异常。
         """
-        import math
-        
         mat_params = self.get_material_params()
         env_params = self.get_environment_params()
         env_temp = env_params['env_temp']
@@ -387,7 +369,7 @@ class PoolFire(FireModel):
         air_density = env_params['air_density']
         combustion_heat = mat_params['combustion_heat']
         
-        assert not('env_temp' in self._nan_params.index), self.assert_info('env_temp')
+        assert not('env_temp' in self._nan_params), self.assert_info('env_temp')
         assert combustion_heat > 0.0, self.assert_info('combustion_heat')
         assert eta > 0.0
         
@@ -422,7 +404,7 @@ class PoolFire(FireModel):
         
         Raises:
             ZeroDivisionError - 除数为 0 异常。
-            AssertError       - 模型参数空值断言异常。
+            AssertionError       - 模型参数空值断言异常。
         """
         import math
         
@@ -493,29 +475,29 @@ class PointSourceGasDiffusion(GasDiffusionModel):
     了气体扩散区域垂直下风向轴的距离计算、浓度计算、浓度分布计算。
     """
     def __init__(self, material, mat_params=pd.Series(), env_params=pd.Series()):
-    """
-    构造方法。
-    
-    Parameters:
-        'mat_params' - pandas Series 对象，扩散气体固有属性集合，目前可不提供。
-        'env_params' - pandas Series 对象，扩散气体所在环境属性集合，必须包含以下 key - value
-            
-            'wind_speed'        - 区域风速，单位：m/s。默认采样频率 0.5h。
-            'center_longtitude' - 事故点经度。
-            'center_latitude'   - 事故点纬度。
-            'total_cloudiness'  - 建模时总云量，无量纲。
-            'low_cloudiness'    - 建模时低云量，无量纲。
-            'source_strength'   - 泄露点的源强，单位：g/s
-    
-    Raises:
-        KeyError
-    """
+        """
+        构造方法。
+        
+        Parameters:
+            'mat_params' - pandas Series 对象，扩散气体固有属性集合，目前可不提供。
+            'env_params' - pandas Series 对象，扩散气体所在环境属性集合，必须包含以下 key - value
+                
+                'wind_speed'        - 区域风速，单位：m/s。默认采样频率 0.5h。
+                'center_longtitude' - 事故点经度。
+                'center_latitude'   - 事故点纬度。
+                'total_cloudiness'  - 建模时总云量，无量纲。
+                'low_cloudiness'    - 建模时低云量，无量纲。
+                'source_strength'   - 泄露点的源强，单位：g/s
+        
+        Raises:
+            KeyError
+        """
         if (not PointSourceGasDiffusion._ENV_NE_PARAMS.isin(env_params.index).all()):
             raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
-        
+
         self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
                                       env_params[env_params.isnull()]], sort=False)
         
@@ -542,7 +524,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             float 标量，气体扩散区域垂直风向距离，单位：m。
         
         Raises:
-            AssertError
+            AssertionError
             
         """
         assert c >= 0, self.assert_info('c')
@@ -563,7 +545,24 @@ class PointSourceGasDiffusion(GasDiffusionModel):
     
     def calc_concentration(self, pgis=None, hdis=-1, vdis=0, ddis=0, srch=0, keep=True):
         """
-        mg/m^3
+        方法根据连续点源高斯扩散模型计算浓度，可根据 GIS 坐标（待扩展）或具体距离参数。
+        
+        Parameters:
+            'pgis' - 目标位置的经纬度，pgis=[经度, 纬度]，目前不支持，待扩展。
+            'hdis' - 下风向距离，单位：m。
+            'vdis' - 垂直下风向距离，单位：m。
+            'ddis' - 地面高度，单位：m。
+            'srch' - 点源有效高度，单位：m。
+            'keep' - 是否在内存中存储计算结果。
+        
+        Returns:
+            float，目标位置的浓度，单位：mg/m^3。
+        
+        Raises:
+            AssertionError
+            
+        Note:
+        
         """
         assert ddis >= 0, self.assert_info('ddis')
         assert srch >= 0, self.assert_info('srch')
@@ -591,12 +590,40 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             concentration = a1
         else:
             concentration = 0.5 * a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
-        if keep:
-            self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), concentration)
+        
+        if concentration < 1e-6: concentration = 0.0
+        if keep:self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), 
+                                    concentration)
         
         return concentration
         
     def calc_distribution(self, c, t, ddis=0, srch=0, step=10, cs=False):
+        """
+        方法用于计算事故点目标浓度的分布范围。
+        
+        Parameters:
+            'c' - 目标浓度，单位：mg/m^3。
+            't' - 事故发生后的时间，单位：s。
+            'ddis' - 地面高度，单位：m。
+            'srch' - 点源有效高度，单位：m。
+            'step' - 步长，减小该参数可提高精度，但会增加计算时间，单位：m。
+            'cs' - 该参数用于指定是否返回下风向轴上的浓度分布。
+        
+        Returns:
+            python list 对象。其中
+                index = 0，python tuple 对象，表示椭圆分布区域的长短半轴，即 a 和 b，单位：m。
+                index = 1，python tuple 对象，表示椭圆分布区域的横轴起始和终止点，单位：m。
+                index = 2，python tuple 对象，表示最大值出现的横轴距离和最大浓度值，单位：m 和 mg/m^3。
+                如果 cs = True，则 index = 4，pandas Series 对象，
+                表示横轴的浓度分布，index 表示距离，values 表示浓度，单位：m 和 mg/m^3。
+            
+        Raises:
+            AssertionError
+            
+        Note:
+            如果给定的浓度值大于最大值，则椭圆分布区域和起始位置为 None，但返回最大值和最大值出现的位置。
+            
+        """
         assert srch >= 0, self.assert_info('srch')
         assert c >= 0, self.assert_info('c')
         assert t > 0, self.assert_info('t')
@@ -609,7 +636,6 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         hdises = np.linspace(0, hdis_max, num + 1)
         points = pd.Series(hdises, index=hdises)
         concentrations = points.apply(lambda x: self.calc_concentration(hdis=x, ddis=ddis, srch=srch, keep=False))
-        concentrations[concentrations < 1e-6] = 0.0
         xm = concentrations.idxmax()
         cm = concentrations[xm]
         
@@ -650,11 +676,11 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         
 def module_test():
     import pandas as pd
-    gas_mat_params = pd.Series({'material_volume': 3000 * 1e-2,
-                                'material_density': 0.79 * 1e3,
-                                'combustion_heat': 45980,
-                                'material_weight': None})
-    gas_env_params = pd.Series({'tnt_explosive_energy': 4675})
+    gas_mat_params = pd.Series({'material_density': 0.79 * 1e3,
+                                'combustion_heat': 45980})
+    gas_env_params = pd.Series({'tnt_explosive_energy': 4675,
+                                'material_volume': None,
+                                'material_weight': 23700})
     
     gas = VaporCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
     gas.calc_wave_radius(0.1)
@@ -686,7 +712,7 @@ def module_test():
                             'source_strength': 25000})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-    res = h2.calc_distribution(30, 3600, srch=5, step=1)
+    res = h2.calc_distribution(30, 360, srch=5, step=10)
     print(h2.get_info())
     print(res)
     
