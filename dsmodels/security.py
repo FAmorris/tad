@@ -223,7 +223,7 @@ class VaporCloudExplosion(ExplosionModel):
         return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     def get_info(self):
-        return super().get_info('steam cloud explosion model reports', width=80, v_width=40)
+        return super().get_info('vapor cloud explosion model reports', width=80, v_width=40)
         
         
 class PoolFire(FireModel):
@@ -481,7 +481,6 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         Parameters:
             'mat_params' - pandas Series 对象，扩散气体固有属性集合，目前可不提供。
             'env_params' - pandas Series 对象，扩散气体所在环境属性集合，必须包含以下 key - value
-                
                 'wind_speed'        - 区域风速，单位：m/s。默认采样频率 0.5h。
                 'center_longtitude' - 事故点经度。
                 'center_latitude'   - 事故点纬度。
@@ -602,12 +601,12 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         方法用于计算事故点目标浓度的分布范围。
         
         Parameters:
-            'c' - 目标浓度，单位：mg/m^3。
-            't' - 事故发生后的时间，单位：s。
+            'c'    - 目标浓度，单位：mg/m^3。
+            't'    - 事故发生后的时间，单位：s。
             'ddis' - 地面高度，单位：m。
             'srch' - 点源有效高度，单位：m。
-            'step' - 步长，减小该参数可提高精度，但会增加计算时间，单位：m。
-            'cs' - 该参数用于指定是否返回下风向轴上的浓度分布。
+            'step' - 步长，减小该参数可提高精度，但会增加计算时间，0 < step < (t * 风速)， 单位：m。
+            'cs'   - 该参数用于指定是否返回下风向轴上的浓度分布。
         
         Returns:
             python list 对象。其中
@@ -630,8 +629,9 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         env_params = self.get_environment_params()
         wind_speed = env_params['wind_speed']
         assert wind_speed > 0.0, self.assert_info('wind_speed')
-        
         hdis_max = math.ceil(wind_speed * t)
+        assert hdis_max > step and step > 0, self.assert_info(step)
+        
         num = hdis_max // step
         hdises = np.linspace(0, hdis_max, num + 1)
         points = pd.Series(hdises, index=hdises)
@@ -709,7 +709,8 @@ def module_test():
                             'center_latitude': 30.62083333,
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
-                            'source_strength': 25000})
+                            'source_strength': 25000,
+                            'start_datetime': None})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
     res = h2.calc_distribution(30, 360, srch=5, step=10)
