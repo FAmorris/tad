@@ -3,6 +3,7 @@
 from dsmodels.security import VaporCloudExplosion, PoolFire, PointSourceGasDiffusion
 
 import flask
+from flask import request
 import flask_script
 import pandas as pd
 import json
@@ -14,7 +15,7 @@ def index():
     return 'hello, world!'
 
 
-@app.route('/dsmodels/v1.0.0/security/vce/radius', method=['POST'])
+@app.route('/dsmodels/v1.0.0/security/vce/radius', methods=['POST'])
 def get_vce_radius():
     data = request.json['data']
     
