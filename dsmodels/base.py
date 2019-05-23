@@ -362,15 +362,18 @@ class GasDiffusionModel(SecurityModel):
             raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
-        
+            
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
         self._srlt = GasDiffusionModel._SRLT
         self._ast = GasDiffusionModel._AST
         self._dpct = GasDiffusionModel._DPCT
         
-        super().__init__(material=material, mat_params=mat_params, env_params=env_params)
         self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
                                       env_params[env_params.isnull()]], sort=False)
+        
+        if 'start_datetime' in self._nan_params:
+            self._env_params['start_datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self._nan_params.drop('start_datetime', inplace=True)
     
     def _get_srlt(self): return self._srlt.copy()
     
@@ -392,14 +395,8 @@ class GasDiffusionModel(SecurityModel):
         Raises:
             None
         """
-        env_params = self.get_environment_params()
-        if not 'start_datetime' in self._nan_params:
-            sdt = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S')
-            day = sdt.timetuple().tm_yday
-        else: 
-            day = datetime.now().timetuple().tm_yday
-            self._env_params['start_datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self._nan_params.drop('start_datetime', inplace=True)
+        sdt = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S')
+        day = sdt.timetuple().tm_yday
         
         if 366 == day: day = 365
         theta = 360 * day / 365
@@ -434,9 +431,7 @@ class GasDiffusionModel(SecurityModel):
         assert lat >= 0, self.assert_info('center_latitude')
         assert lgt >= 0, self.assert_info('center_longtitude')
         
-        if not 'start_datetime' in self._nan_params:
-            hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
-        else: hour = datetime.now().hour
+        hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
         
         declination = self.calc_declination()
         tmp = 15 * hour + lgt - 300
@@ -468,9 +463,7 @@ class GasDiffusionModel(SecurityModel):
         assert lc >= 0, self.assert_info('low_cloudiness')
         assert tc >= lc, self.assert_info('total_cloudiness, low_cloudiness')
         
-        if not 'start_datetime' in self._nan_params:
-            hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
-        else: hour = datetime.now().hour
+        hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
         
         # 云量
         if (tc <= 4 and lc <= 4): row = 0
