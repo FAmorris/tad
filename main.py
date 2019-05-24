@@ -19,8 +19,8 @@ def index():
 def get_vce_radius():
     data = request.json['data']
     material = data['material']
-    mat_params = data['mat_params']
-    env_params = data['env_params']
+    mat_params = pd.Series(data['mat_params'])
+    env_params = pd.Series(data['env_params'])
     ops = data['ops']
     
     try:
