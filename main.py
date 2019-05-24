@@ -31,7 +31,7 @@ def get_vce_radius():
             modelouts = [vce.calc_wave_radius(modelin, fparams['alpha'], fparams['beta']) for modelin in modelins]
         elif 'PoolFire' == modeltype:
             pf = PoolFire(material, mat_params, env_params)
-            modelouts = [pf.calc_heat_radiation(modelin, fparams['eta'], fparams['theta']) for modelin in modelins]
+            modelouts = [pf.calc_heat_radiation_radius(modelin, fparams['eta'], fparams['theta']) for modelin in modelins]
         elif 'PointSourceGasDiffusion' == modeltype:
             psgd = PointSourceGasDiffusion(material, mat_params, env_params)
             modelouts = [psgd.calc_distribution(modelin, fparams['t'], fparams['ddis'], fparams['srch'], fparams['step'])]
@@ -47,7 +47,6 @@ def get_vce_radius():
     return json.dumps({'code': res_code, 'massege': res_msg, 'data': res_data})
     
     
-
 if '__main__' == __name__:
     app_manager = flask_script.Manager(app)
     app_manager.run()
