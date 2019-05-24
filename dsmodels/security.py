@@ -587,7 +587,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         
         return concentration
         
-    def calc_distribution(self, c, t, ddis=0, srch=0, step=10, cs=False):
+    def calc_distribution(self, cs, t, ddis=0, srch=0, step=10, hcd=False):
         """
         方法用于计算事故点目标浓度的分布范围。
         
@@ -597,14 +597,14 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             'ddis' - 地面高度，单位：m。
             'srch' - 点源有效高度，单位：m。
             'step' - 步长，减小该参数可提高精度，但会增加计算时间，0 < step < (t * 风速)， 单位：m。
-            'cs'   - 该参数用于指定是否返回下风向轴上的浓度分布。
+            'hcd'   - 该参数用于指定是否返回下风向轴上的浓度分布。
         
         Returns:
             python list 对象。其中
                 index = 0，python tuple 对象，表示椭圆分布区域的长短半轴，即 a 和 b，单位：m。
                 index = 1，python tuple 对象，表示椭圆分布区域的横轴起始和终止点，单位：m。
                 index = 2，python tuple 对象，表示最大值出现的横轴距离和最大浓度值，单位：m 和 mg/m^3。
-                如果 cs = True，则 index = 4，pandas Series 对象，
+                如果 hcd = True，则 index = 4，pandas Series 对象，
                 表示横轴的浓度分布，index 表示距离，values 表示浓度，单位：m 和 mg/m^3。
             
         Raises:
@@ -630,17 +630,24 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         xm = concentrations.idxmax()
         cm = concentrations[xm]
         
-        if c < cm:
-            target_scope = concentrations[concentrations >= c]
-            x1 = target_scope.index.values.min()
-            x2 = target_scope.index.values.max()
-            a = (x2 - x1) / 2
-            self._add_result('area({}mg/m^3) a:'.format(c), a)
-            b = self.calc_vertical_distance(c=c, t=t, hdis=a, srch=srch)
-        else:
-            a = b = x1 = x2 = None
-        results = [(a, b), (x1, x2), (xm, cm)]
-        if cs:
+        ab = []
+        scopes = []
+        for c in cs:
+            if c < cm:
+                target_scope = concentrations[concentrations >= c]
+                x1 = target_scope.index.values.min()
+                x2 = target_scope.index.values.max()
+                a = (x2 - x1) / 2
+                self._add_result('area({}mg/m^3) a:'.format(c), a)
+                b = self.calc_vertical_distance(c=c, t=t, hdis=a, srch=srch)
+            else:
+                a = b = x1 = x2 = None
+        
+            ab.append((a, b))
+            scopes.append((x1, x2))
+        results = [ab, scopes, (xm, cm)]
+        
+        if hcd:
             results.append(concentrations)
             
         return results
