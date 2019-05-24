@@ -615,7 +615,6 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             
         """
         assert srch >= 0, self.assert_info('srch')
-        assert c >= 0, self.assert_info('c')
         assert t > 0, self.assert_info('t')
         env_params = self.get_environment_params()
         wind_speed = env_params['wind_speed']
@@ -633,6 +632,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         ab = []
         scopes = []
         for c in cs:
+            assert c >= 0, self.assert_info('c')
             if c < cm:
                 target_scope = concentrations[concentrations >= c]
                 x1 = target_scope.index.values.min()
