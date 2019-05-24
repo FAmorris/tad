@@ -16,7 +16,7 @@ def index():
 
 
 @app.route('/tad/v1.0.0/dsmodels/security/api/hurtScope', methods=['POST'])
-def get_vce_radius():
+def get_hurtScope():
     data = request.json['data']
     modeltype = request.json['modeltype']
     material = data['material']
@@ -35,6 +35,7 @@ def get_vce_radius():
         elif 'PointSourceGasDiffusion' == modeltype:
             psgd = PointSourceGasDiffusion(material, mat_params, env_params)
             modelouts = [psgd.calc_distribution(modelin, fparams['t'], fparams['ddis'], fparams['srch'], fparams['step']) for modelin in modelins]
+        else: raise Exception()
             
         res_code = 0
         res_msg = 'success'
@@ -47,6 +48,23 @@ def get_vce_radius():
     return json.dumps({'code': res_code, 'massege': res_msg, 'data': res_data})
     
     
+@app.route('/tad/v1.0.0/dsmodels/security/modelParameters/<modelName>')
+def get_modelParameters(modelName):
+    if 'VaporCloudExplosion' == modelName:
+        mat_ne_params = VaporCloudExplosion.get_necessary_mat_params().tolist()
+        env_ne_params = VaporCloudExplosion.get_necessary_env_params().tolist()
+    elif 'PoolFire' == modelName:
+        mat_ne_params = PoolFire.get_necessary_mat_params().tolist()
+        env_ne_params = PoolFire.get_necessary_env_params().tolist()
+    elif 'PointSourceGasDiffusion' == modelName:
+        mat_ne_params = PointSourceGasDiffusion.get_necessary_mat_params().tolist()
+        env_ne_params = PointSourceGasDiffusion.get_necessary_env_params().tolist()
+    else:
+        mat_ne_params = None
+        env_ne_params = None
+    return json.dumps({'mat_ne_params': mat_ne_params, 'env_ne_params': env_ne_params})
+
+
 if '__main__' == __name__:
     app_manager = flask_script.Manager(app)
     app_manager.run()
