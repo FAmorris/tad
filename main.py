@@ -23,18 +23,19 @@ def get_vce_radius():
     env_params = data['env_params']
     ops = data['ops']
     
-    res = {}
-    
     try:
         vce = VaporCloudExplosion(material, mat_params, env_params)
         radiuses = [vce.calc_wave_radius(op, env_params['eta'], env_params['theta']) for op in ops]
-        res['Code'] = 0
-        res['Message'] = 'Success'
-        res['data'] = radiuses
-        res['result']
+        res_code = 0
+        res_msg = 'Success'
+        res_data = radiuses
     except:
-    
-    return res
+        res_code = 1
+        res_msg = 'Faild'
+        res_data = None
+        
+    res= {'code': res_code, 'massege': res_msg, 'data': res_data}
+    return json.dumps(res)
 
 if '__main__' == __name__:
     app_manager = flask_script.Manager(app)
