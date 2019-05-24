@@ -18,12 +18,12 @@ def index():
 @app.route('/tad/v1.0.0/dsmodels/security/api/hurtScope', methods=['POST'])
 def get_vce_radius():
     data = request.json['data']
-    modeltype = data['modeltype']
+    modeltype = request.json['modeltype']
     material = data['material']
     mat_params = pd.Series(data['mat_params'])
     env_params = pd.Series(data['env_params'])
     fparams = data['fparams']
-    modelins = func_params['modelins']
+    modelins = fparams['modelins']
     
     try:
         if 'VaporCloudExplosion' == modeltype:
