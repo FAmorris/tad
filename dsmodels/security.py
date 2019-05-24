@@ -373,12 +373,7 @@ class PoolFire(FireModel):
         assert combustion_heat > 0.0, self.assert_info('combustion_heat')
         assert eta > 0.0
         
-        if 'burning_speed' in self._nan_params:
-            burning_speed = self.calc_burning_speed()
-        else:
-            burning_speed = mat_params['burning_speed']
-            assert burning_speed > 0.0, self.assert_info('burning_speed')
-            
+        burning_speed = self.calc_burning_speed()
         flame_height = self.calc_flame_height()
         tmp1 = math.pi * pool_radius * ( pool_radius + 2 * flame_height)\
                        * burning_speed * eta * combustion_heat
@@ -405,9 +400,7 @@ class PoolFire(FireModel):
         Raises:
             ZeroDivisionError - 除数为 0 异常。
             AssertionError       - 模型参数空值断言异常。
-        """
-        import math
-        
+        """   
         assert x > 0.0, self.assert_info('x')
         assert theta > 0.0, self.assert_info('theta')
         
@@ -434,9 +427,7 @@ class PoolFire(FireModel):
         Raises:
             ZeroDivisionError - 除数为 0 异常。
             KeyError          - 键不存在异常。
-        """
-        import math
-        
+        """     
         assert strength > 0.0, self.assert_info('strength')
         
         heat_radiation = self.calc_heat_radiation(eta)

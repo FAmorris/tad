@@ -12,7 +12,7 @@ app = flask.Flask(__name__)
 
 @app.route('/')
 def index():
-    return 'hello, world!'
+    return 'DSModel API'
 
 
 @app.route('/tad/v1.0.0/dsmodels/security/api/hurtScope', methods=['POST'])
