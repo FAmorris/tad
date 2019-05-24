@@ -25,7 +25,7 @@ def get_vce_radius():
     
     try:
         vce = VaporCloudExplosion(material, mat_params, env_params)
-        radiuses = [vce.calc_wave_radius(op, env_params['eta'], env_params['theta']) for op in ops]
+        radiuses = [vce.calc_wave_radius(op, env_params['alpha'], env_params['beta']) for op in ops]
         res_code = 0
         res_msg = 'Success'
         res_data = radiuses
