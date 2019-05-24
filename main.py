@@ -34,7 +34,7 @@ def get_vce_radius():
             modelouts = [pf.calc_heat_radiation_radius(modelin, fparams['eta'], fparams['theta']) for modelin in modelins]
         elif 'PointSourceGasDiffusion' == modeltype:
             psgd = PointSourceGasDiffusion(material, mat_params, env_params)
-            modelouts = [psgd.calc_distribution(modelin, fparams['t'], fparams['ddis'], fparams['srch'], fparams['step'])]
+            modelouts = [psgd.calc_distribution(modelin, fparams['t'], fparams['ddis'], fparams['srch'], fparams['step']) for modelin in modelins]
             
         res_code = 0
         res_msg = 'success'
