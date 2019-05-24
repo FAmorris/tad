@@ -38,7 +38,7 @@ def get_vce_radius():
             
         res_code = 0
         res_msg = 'success'
-        res_data = {'material': material, 'modelouts': modelins}
+        res_data = {'material': material, 'modelouts': modelouts}
     except:
         res_code = 1
         res_msg = 'faild'
