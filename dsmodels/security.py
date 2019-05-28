@@ -708,10 +708,10 @@ def module_test():
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
                             'source_strength': 25000,
-                            'start_datetime': None})
+                            'start_datetime': '2019-01-01 00:00:00'})
     
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
-    res = h2.calc_distribution(30, 360, srch=5, step=10)
+    res = h2.calc_distribution([30], 360, srch=5, step=10)
     print(h2.get_info())
     print(res)
     

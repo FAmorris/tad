@@ -395,6 +395,7 @@ class GasDiffusionModel(SecurityModel):
         Raises:
             None
         """
+        env_params = self.get_environment_params()
         sdt = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S')
         day = sdt.timetuple().tm_yday
         
