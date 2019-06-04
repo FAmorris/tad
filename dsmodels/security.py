@@ -111,9 +111,11 @@ class VaporCloudExplosion(ExplosionModel):
         """
         assert (alpha > 0) and (beta > 0), self.assert_info('alpha, beta')
         mat_params = self.get_material_params()
+        env_params = self.get_environment_params()
         results = self.get_results()
 
-        if 'explosive_energy' in results:
+        if ('explosive_energy' in results) and (abs(alpha - env_params['alpha']) <= 1e-8)\
+                and (abs(beta - env_params['beta']) <= 1e-8):
             return results['explosive_energy']
 
         combustion_heat = mat_params['combustion_heat']
@@ -147,7 +149,8 @@ class VaporCloudExplosion(ExplosionModel):
         env_params = self.get_environment_params()
         results = self.get_results()
 
-        if 'tnt_weight' in results:
+        if ('tnt_weight' in results) and (abs(alpha - env_params['alpha']) <= 1e-8)\
+                and (abs(beta == env_params['beta']) <= 1e-8):
             return results['tnt_weight']
         
         if 'tnt_explosive_energy' in self._nan_params:
@@ -178,14 +181,14 @@ class VaporCloudExplosion(ExplosionModel):
             'ZeroDivisionError' - 除数为 0 异常。
             'AssertionError'。
         """
-        assert x > 0.0, self.assert_info('x')
+        assert x > 0, self.assert_info('x')
         
         tnt_weight = self.calc_turn_tnt(alpha, beta)
         relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
         wave_overpressure = self.tnt_overpressure_of(relative_dis)
         if wave_overpressure < 0: wave_overpressure = 0.0
         self._add_environment_param('relative_distance: {x}m'.format(x), relative_dis)
-        self._add_result('distance: ({x})'.format(x=x), wave_overpressure)
+        self._add_result('d{x}'.format(x=x), wave_overpressure)
         
         return wave_overpressure
         
@@ -210,7 +213,7 @@ class VaporCloudExplosion(ExplosionModel):
         relative_dis = self.tnt_distance_of(p)
         wave_radius = 0.1 * math.pow(tnt_weight, 1 / 3) * relative_dis
         if wave_radius < 0: wave_radius = 0.0
-        self._add_result('overpressure: ({p})'.format(p=p), wave_radius)
+        self._add_result('p{p})'.format(p=p), wave_radius)
         self._add_environment_param('relative_distance:{p}Mpa'.format(p=p), relative_dis)
         return wave_radius
         
@@ -378,7 +381,7 @@ class PoolFire(FireModel):
         env_params = self.get_environment_params()
         results = self.get_results()
 
-        if 'heat_radiation' in results:
+        if ('heat_radiation' in results) and (abs(eta - env_params['eta']) <= 1e-8):
             return results['heat_radiation']
 
         env_temp = env_params['env_temp']
@@ -596,7 +599,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         else:
             concentration = 0.5 * a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
         
-        if concentration < 1e-6: concentration = 0.0
+        if concentration < 1e-8: concentration = 0.0
         if keep:self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), 
                                     concentration)
         
