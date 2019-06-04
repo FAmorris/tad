@@ -358,8 +358,6 @@ class GasDiffusionModel(SecurityModel):
         Raises:
             KeyError
         """
-        if (not GasDiffusionModel._ENV_NE_PARAMS.isin(env_params.index).all()):
-            raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
             

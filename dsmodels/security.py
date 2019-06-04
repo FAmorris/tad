@@ -54,9 +54,6 @@ class VaporCloudExplosion(ExplosionModel):
                 
             则采用上述指定值计算，否则使用默认值 4500 kJ/kg。1kg TNT 爆破能为 4230 ~ 4836 kJ/kg。
         """
-        if (not VaporCloudExplosion._MAT_NE_PARAMS.isin(mat_params.index).all())\
-            or (not VaporCloudExplosion._ENV_NE_PARAMS.isin(env_params.index).all()):
-            raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
             
@@ -80,16 +77,18 @@ class VaporCloudExplosion(ExplosionModel):
         """
          
         env_params = self.get_environment_params()
+
         if env_params['material_weight'] > 0:
             return env_params['material_weight']
+
         mat_params = self.get_material_params()
         mat_volume = env_params['material_volume']
         mat_density = mat_params['material_density']
-        assert mat_volume > 0.0, self.assert_info('material_volume')
-        assert mat_density > 0.0, self.assert_info('material_density')
+        assert mat_volume > 0, self.assert_info('material_volume')
+        assert mat_density > 0, self.assert_info('material_density')
         
         mat_weight = mat_volume * mat_density
-        self._add_result('material_weight(kg)', mat_weight)
+        self._env_params['material_weight'] = mat_weight
         
         return mat_weight
         
@@ -110,14 +109,19 @@ class VaporCloudExplosion(ExplosionModel):
         Notes:
 
         """
-        assert (alpha > 0.0) and (beta > 0.0), self.assert_info('alpha, beta')
+        assert (alpha > 0) and (beta > 0), self.assert_info('alpha, beta')
         mat_params = self.get_material_params()
+        results = self.get_results()
+
+        if 'explosive_energy' in results:
+            return results['explosive_energy']
+
         combustion_heat = mat_params['combustion_heat']
-        assert combustion_heat > 0.0, self.assert_info('combustion_heat')
+        assert combustion_heat > 0, self.assert_info('combustion_heat')
 
         mat_weight = self.calc_material_weight()
         explosive_energy = alpha * beta * combustion_heat * mat_weight
-        self._add_result('explosive_energy(kJ)', explosive_energy)
+        self._add_result('explosive_energy', explosive_energy)
         self._add_environment_param('alpha', alpha)
         self._add_environment_param('beta', beta)
         
@@ -141,6 +145,10 @@ class VaporCloudExplosion(ExplosionModel):
             
         """
         env_params = self.get_environment_params()
+        results = self.get_results()
+
+        if 'tnt_weight' in results:
+            return results['tnt_weight']
         
         if 'tnt_explosive_energy' in self._nan_params:
             tnt_explosive_energy = 4500
@@ -150,7 +158,7 @@ class VaporCloudExplosion(ExplosionModel):
         
         explosive_energy = self.calc_explosive_energy(alpha, beta)
         tnt_weight = explosive_energy / tnt_explosive_energy
-        self._add_result('tnt_weight(kg)', tnt_weight)
+        self._add_result('tnt_weight', tnt_weight)
         
         return tnt_weight
         
@@ -246,15 +254,15 @@ class PoolFire(FireModel):
         构造函数。
         
         Parameters:
-            material   - 燃烧物质名称。
-            mat_params - pandas Series 对象，燃烧物质相关参数。至少包含以下键值对
+            'material'   - 燃烧物质名称。
+            'mat_params' - pandas Series 对象，燃烧物质相关参数。至少包含以下键值对
                 'boiling_point'          - 沸点，单位：K。
                 'combustion_heat'        - 燃烧热，单位：J/kg。
                 'gasification_heat'      - 气化热，单位：J/kg。
                 'specific_heat_capacity' - 定压比热容，单位：J/(kg·K)。
                 'burning_speed'          - 燃烧速度，单位：kg/(m^2·s)。
                          
-            env_params - pandas Series 对象，环境参数。至少包含以下键值对
+            'env_params' - pandas Series 对象，环境参数。至少包含以下键值对
                 'pool_radius' - 液池半径。单位：m。
                 'env_temp'    - 环境温度。单位：K。
                 'air_density' - 事故点周围空气密度，单位：kg/m^3。
@@ -265,9 +273,6 @@ class PoolFire(FireModel):
         Raises:
             None
         """
-        if (not PoolFire._MAT_NE_PARAMS.isin(mat_params.index).all())\
-            or (not PoolFire._ENV_NE_PARAMS.isin(env_params.index).all()):
-            raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
             
@@ -291,30 +296,32 @@ class PoolFire(FireModel):
             AssertError       - 模型参数空值断言异常。
         """
         mat_params = self.get_material_params()
+
         if mat_params['burning_speed'] > 0: 
             return mat_params['burning_speed']
+
         env_params = self.get_environment_params()
         combustion_heat = mat_params['combustion_heat']
         specific_heat_capacity = mat_params['specific_heat_capacity']
         gasification_heat = mat_params['gasification_heat']
         
-        assert not 'boiling_point' in self._nan_params, self.assert_info('boiling_point')
-        assert combustion_heat > 0.0, self.assert_info('combustion_heat')
-        assert specific_heat_capacity > 0.0, self.assert_info('specific_heat_capacity')
-        assert gasification_heat > 0.0, self.assert_info('gasification_heat')
+        assert combustion_heat > 0, self.assert_info('combustion_heat')
+        assert specific_heat_capacity > 0, self.assert_info('specific_heat_capacity')
+        assert gasification_heat > 0, self.assert_info('gasification_heat')
         assert not 'env_temp' in self._nan_params, self.assert_info('env_temp')
         
-        boiling_point = mat_params['boiling_point']
         env_temp = env_params['env_temp']
         
         delta_temp = boiling_point - env_temp
         
         if delta_temp > 0:
-            burning_speed = (1e-3 * combustion_heat) / (specific_heat_capacity * delta_temp + gasification_heat)
+            burning_speed = (1e-3 * combustion_heat) / (specific_heat_capacity * delta_temp\
+                    + gasification_heat)
         else:
             burning_speed = (1e-3 * combustion_heat) / gasification_heat
         
-        self._add_result('burning_speed(kg/(m^2·s))', burning_speed)
+        self._env_params['burning_speed'] = burning_speed
+
         return burning_speed
         
     def calc_flame_height(self):
@@ -333,17 +340,22 @@ class PoolFire(FireModel):
         """
         mat_params = self.get_material_params()
         env_params = self.get_environment_params()
+        results = self.get_results()
+        
+        if 'flame_height' in results:
+            return results['flame_height']
+
         air_density = env_params['air_density']
         pool_radius = env_params['pool_radius']
         
-        assert air_density > 0.0, self.assert_info('air_density')
-        assert pool_radius > 0.0, self.assert_info('pool_radius')
+        assert air_density > 0, self.assert_info('air_density')
+        assert pool_radius > 0, self.assert_info('pool_radius')
         
         burning_speed = self.calc_burning_speed()
         tmp1 = burning_speed / (air_density * math.sqrt(19.6 * pool_radius))
         flame_height = 84 * pool_radius * math.pow(tmp1, 0.6)
         
-        self._add_result('flame_height(m)', flame_height)
+        self._add_result('flame_height', flame_height)
         
         return flame_height
 
@@ -352,7 +364,7 @@ class PoolFire(FireModel):
         方法用于计算总热辐射通量。
         
         Parameters:
-            eta - 燃烧效率，取值范围 0.13 ~ 0.35，默认 0.24。
+            eta - 燃烧效率因子，取值范围 0.13 ~ 0.35，默认 0.24。
         
         Returns:
             液体燃烧物质释放出的总热辐射通量, W。
@@ -364,14 +376,19 @@ class PoolFire(FireModel):
         """
         mat_params = self.get_material_params()
         env_params = self.get_environment_params()
+        results = self.get_results()
+
+        if 'heat_radiation' in results:
+            return results['heat_radiation']
+
         env_temp = env_params['env_temp']
         pool_radius = env_params['pool_radius']
         air_density = env_params['air_density']
         combustion_heat = mat_params['combustion_heat']
         
-        assert not('env_temp' in self._nan_params), self.assert_info('env_temp')
-        assert combustion_heat > 0.0, self.assert_info('combustion_heat')
-        assert eta > 0.0
+        assert not ('env_temp' in self._nan_params), self.assert_info('env_temp')
+        assert combustion_heat > 0, self.assert_info('combustion_heat')
+        assert eta > 0
         
         burning_speed = self.calc_burning_speed()
         flame_height = self.calc_flame_height()
@@ -381,7 +398,7 @@ class PoolFire(FireModel):
         heat_radiation = tmp1 / tmp2
         
         self._add_environment_param('eta', eta)
-        self._add_result('heat_radiation(W)', heat_radiation)
+        self._add_result('heat_radiation', heat_radiation)
         
         return heat_radiation
         
@@ -401,14 +418,14 @@ class PoolFire(FireModel):
             ZeroDivisionError - 除数为 0 异常。
             AssertionError       - 模型参数空值断言异常。
         """   
-        assert x > 0.0, self.assert_info('x')
-        assert theta > 0.0, self.assert_info('theta')
+        assert x > 0, self.assert_info('x')
+        assert theta > 0, self.assert_info('theta')
         
         heat_radiation = self.calc_heat_radiation(eta)
         heat_radiation_strength = (heat_radiation * theta) / (4 * math.pi * math.pow(x, 2))
         
         self._add_environment_param('theta', theta)
-        self._add_result('distance: {}(m)'.format(x), heat_radiation_strength)
+        self._add_result('d{}'.format(x), heat_radiation_strength)
         
         return heat_radiation_strength
         
@@ -428,13 +445,13 @@ class PoolFire(FireModel):
             ZeroDivisionError - 除数为 0 异常。
             KeyError          - 键不存在异常。
         """     
-        assert strength > 0.0, self.assert_info('strength')
+        assert strength > 0, self.assert_info('strength')
         
         heat_radiation = self.calc_heat_radiation(eta)
         radius = math.sqrt((theta * heat_radiation) / (4 * math.pi * strength))
         
         self._add_environment_param('theta', theta)
-        self._add_result('strength: {}(W)'.format(strength), radius)
+        self._add_result('s{}'.format(strength), radius)
         
         return radius
         
@@ -482,8 +499,6 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         Raises:
             KeyError
         """
-        if (not PointSourceGasDiffusion._ENV_NE_PARAMS.isin(env_params.index).all()):
-            raise KeyError('model parameter loss.')
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
@@ -603,7 +618,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             python list 对象。其中
                 index = 0，python tuple 对象，表示椭圆分布区域的长短半轴，即 a 和 b，单位：m。
                 index = 1，python tuple 对象，表示椭圆分布区域的横轴起始和终止点，单位：m。
-                index = 2，python tuple 对象，表示最大值出现的横轴距离和最大浓度值，单位：m 和 mg/m^3。
+                index = 2，python tuple 对象，表示最大值出现的横轴距离和最大浓度值，单位：m 和 mg/m^3
                 如果 hcd = True，则 index = 4，pandas Series 对象，
                 表示横轴的浓度分布，index 表示距离，values 表示浓度，单位：m 和 mg/m^3。
             
@@ -611,7 +626,8 @@ class PointSourceGasDiffusion(GasDiffusionModel):
             AssertionError
             
         Note:
-            如果给定的浓度值大于最大值，则椭圆分布区域和起始位置为 None，但返回最大值和最大值出现的位置。
+            如果给定的浓度值大于最大值，则椭圆分布区域和起始位置为 None，
+            但返回最大值和最大值出现的位置。
             
         """
         assert srch >= 0, self.assert_info('srch')
@@ -625,7 +641,8 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         num = hdis_max // step
         hdises = np.linspace(0, hdis_max, num + 1)
         points = pd.Series(hdises, index=hdises)
-        concentrations = points.apply(lambda x: self.calc_concentration(hdis=x, ddis=ddis, srch=srch, keep=False))
+        concentrations = points.apply(lambda x: self.calc_concentration(hdis=x, ddis=ddis,\
+                                                            srch=srch, keep=False))
         xm = concentrations.idxmax()
         cm = concentrations[xm]
         
@@ -669,7 +686,8 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates() 
         
     def get_info(self):
-        return super().get_info(title='point source gas diffusion model reports', width=80, v_width=40)
+        return super().get_info(title='point source gas diffusion model reports', width=80,\
+                v_width=40)
         
         
 def module_test():
@@ -717,4 +735,3 @@ def module_test():
     
 if '__main__' == __name__: 
     module_test()
-    # print(PointSourceGasDiffusion.get_necessary_env_params())
