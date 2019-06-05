@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from base import ExplosionModel, FireModel, GasDiffusionModel
-from utils import calc_gisdistance
+import utils
 
 class VaporCloudExplosion(ExplosionModel):
     """
@@ -75,7 +75,6 @@ class VaporCloudExplosion(ExplosionModel):
         Raises:
             AssertionError。
         """
-         
         env_params = self.get_environment_params()
 
         if env_params['material_weight'] > 0:
@@ -165,7 +164,7 @@ class VaporCloudExplosion(ExplosionModel):
         
         return tnt_weight
         
-    def calc_wave_overpressure(self, x, alpha=0.04, beta=1.8):
+    def calc_wave_overpressure(self, x=None, pgis=None, alpha=0.04, beta=1.8, cache=True):
         """
         方法用于计算泄漏物质发生蒸汽云爆炸时距离爆炸中心 x 米处的冲击波超压。
         
@@ -181,14 +180,22 @@ class VaporCloudExplosion(ExplosionModel):
             'ZeroDivisionError' - 除数为 0 异常。
             'AssertionError'。
         """
-        assert x > 0, self.assert_info('x')
-        
+        assert (x is None) and (pgis is None), self.assert_info('x and pgis both')
+        center_gis = self.get_environment_params()['center_gis']
+
+        if x: 
+            assert x > 0, self.assert_info('x')
+            x = x
+        else:
+            x = utils.calc_gisdistance(center_gis, pgis)
+
         tnt_weight = self.calc_turn_tnt(alpha, beta)
         relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
         wave_overpressure = self.tnt_overpressure_of(relative_dis)
         if wave_overpressure < 0: wave_overpressure = 0.0
-        self._add_environment_param('relative_distance: {x}m'.format(x), relative_dis)
-        self._add_result('d{x}'.format(x=x), wave_overpressure)
+        if cache:
+            self._add_environment_param('relative_distance: {x}m'.format(x), relative_dis)
+            self._add_result('d{x}'.format(x=x), wave_overpressure)
         
         return wave_overpressure
         
@@ -215,9 +222,23 @@ class VaporCloudExplosion(ExplosionModel):
         if wave_radius < 0: wave_radius = 0.0
         self._add_result('p{p})'.format(p=p), wave_radius)
         self._add_environment_param('relative_distance:{p}Mpa'.format(p=p), relative_dis)
+
         return wave_radius
         
-    def fit(self): pass
+    def fit(self, border_gises, interval=500, alpha=0.04, beta=1.8, hst_level=None):
+        if not( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
+
+        grid_points = utils.area_gridding(border_gises, interval)
+        ops = map(lambda x: self.calc_wave_overpressure(pgis=x, alpha=alpha, beta=beta, cache=False),
+                grid_points)
+        ops = list(ops)
+        
+        if hst_level:
+            coeff = (pd.Series(ops) / hst_level).clip(upper=1.0)
+            results = zip(grid_points, coeff)
+        else: results = zip(grid_points, ops)
+
+        return results
     
     def plot(self): pass
     

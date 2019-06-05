@@ -9,7 +9,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from utils import calc_gisdistance
+import utils
 
 class SecurityModel(ABC):
     """
@@ -18,7 +18,7 @@ class SecurityModel(ABC):
         'plot' - 方法用于绘制区域热力图。
     """
     _MAT_NE_PARAMS = pd.Series()
-    _ENV_NE_PARAMS = pd.Series()
+    _ENV_NE_PARAMS = pd.Series(['center_gis'])
     
     def __init__(self, material='', mat_params=pd.Series(), env_params=pd.Series()):
         """
@@ -196,7 +196,7 @@ class ExplosionModel(SecurityModel):
         assert overpressure > 0.0, self.assert_info()
         
         return splev(overpressure, self._get_dop_poly())
-    
+
     @staticmethod
     def get_necessary_mat_params():
         tmp1 = SecurityModel.get_necessary_mat_params()
