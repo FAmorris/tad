@@ -162,7 +162,7 @@ class VaporCloudExplosion(ExplosionModel):
         
         return tnt_weight
         
-    def calc_wave_overpressure(self, x=None, pgis=None, alpha=0.04, beta=1.8, cache=True):
+    def calc_wave_overpressure(self, x=None, gc=None, alpha=0.04, beta=1.8, cache=True):
         """
         方法用于计算泄漏物质发生蒸汽云爆炸时距离爆炸中心 x 米处的冲击波超压。
         
@@ -178,11 +178,11 @@ class VaporCloudExplosion(ExplosionModel):
             'ZeroDivisionError' - 除数为 0 异常。
             'AssertionError'。
         """
-        assert not (x is None) or not (pgis is None), self.assert_info('x and pgis both')
+        assert not (x is None) or not (gc is None), self.assert_info('x and gc both')
 
         if x is None:
-            center_gis = self._env_params['center_gis']
-            x = utils.calc_gisdistance(center_gis, pgis)
+            x = utils.calc_geographical_distance(self.get_environment_params()['center_gc'], gc)
+        else: assert x > 0, self.assert_info('x')
 
         x = x + 1e-8
 
@@ -220,16 +220,16 @@ class VaporCloudExplosion(ExplosionModel):
 
         return wave_radius
         
-    def fit(self, border_gises=None, grid_gises=None, interval=100, alpha=0.04, 
+    def fit(self, border_gcs=None, grid_gcs=None, interval=100, alpha=0.04, 
             beta=1.8, hst_level=None):
         """
         方法用于拟合发生蒸汽云爆炸时给定矩形区域内的冲击波分布或危险系数分布。
 
         Parameters:
-            'border_gises' - python list 对象，目标拟合矩形区域边界 4 个角点的 GIS 坐标，
-                             list 对象的每个元素是一个表示 GIS 位置的 list 对象，即[经度, 纬度]。
-            'grid_gises'   - python list 对象，目标拟合矩形区域网格化后每个网格点的 GIS 坐标集合，
-                             list 对象的每个元素是一个表示网格点 GIS 位置的 list对象，即[经度，纬度]。
+            'border_gcs' - python list 对象，目标拟合矩形区域边界 4 个角点的地理坐标，
+                             list 对象的每个元素是一个表示地理位置的 list 对象，即[经度, 纬度]。
+            'grid_gcs'   - python list 对象，目标拟合矩形区域网格化后每个网格点的地理坐标集合，
+                             list 对象的每个元素是一个表示网格点地理位置的 list对象，即[经度，纬度]。
             'interval'     - 网格化矩形区域时每个网格点之间的间隔，单位：m。
             'alpha'        - TNT 当量系数。
             'beta'         - 地面爆炸系数。
@@ -243,27 +243,27 @@ class VaporCloudExplosion(ExplosionModel):
             AssertionError
         
         Note:
-            使用该方法时，必须指定事故点的经纬度，即 env_params 中添加 'center_gis' 键值对。
-            border_gises 和 grid_gises 不能同时为 None，优先使用 grid_gises 参数值，对于给定边界角点
+            使用该方法时，必须指定事故点的经纬度，即 env_params 中添加 'center_gc' 键值对。
+            border_gcs 和 grid_gcs 不能同时为 None，优先使用 grid_gcs 参数值，对于给定边界角点
             经纬度时，方法会自动对区域进行网格化。
             interval 参数的值越小则网格点越密集，结果越精确，但计算代价也越高。
         """
-        assert not (border_gises is None) or not (grid_gises is None), \
-                self.assert_info('border_gises and grid_gises both')
+        assert not (border_gcs is None) or not (grid_gcs is None), \
+                self.assert_info('border_gcs and grid_gcs both')
         if not ( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
 
-        if grid_gises is None:
-            grid_gises = utils.area_gridding(border_gises, interval)
-        ops = map(lambda x: self.calc_wave_overpressure(pgis=x, alpha=alpha, 
-            beta=beta, cache=False), grid_gises)
+        if grid_gcs is None:
+            grid_gcs = utils.area_gridding(border_gcs, interval)
+        ops = map(lambda x: self.calc_wave_overpressure(gc=x, alpha=alpha, 
+            beta=beta, cache=False), grid_gcs)
         ops = list(ops)
         
         if hst_level:
             assert hst_level > 0, self.assert_info('hst_level')
             coeff = (pd.Series(ops) / hst_level).clip(upper=1.0)
-            res = zip(grid_gises, coeff.tolist())
+            res = zip(grid_gcs, coeff.tolist())
         else: 
-            res = zip(grid_gises, ops)
+            res = zip(grid_gcs, ops)
 
         self._add_result('fit_results', res)
 
@@ -455,7 +455,7 @@ class PoolFire(FireModel):
         
         return heat_radiation
         
-    def calc_heat_radiation_strength(self, x=None, pgis=None, eta=0.24, theta=1.0, cache=True):
+    def calc_heat_radiation_strength(self, x=None, gc=None, eta=0.24, theta=1.0, cache=True):
         """
         方法用于计算距离池火事故点中心 x 米处的目标热辐射强度。
         
@@ -472,10 +472,10 @@ class PoolFire(FireModel):
             AssertionError       - 模型参数空值断言异常。
         """   
         assert theta > 0, self.assert_info('theta')
-        assert not (pgis is None) or not (x is None), self.assert_info('x and pgis both')
+        assert not (gc is None) or not (x is None), self.assert_info('x and pgis both')
 
         if x is None:
-            x = utils.calc_gisdistance(self.get_environment_params['center_gis'], pgis)
+            x = utils.calc_geographical_distance(self.get_environment_params()['center_gc'], gc)
         else: assert x >= 0, self.assert_info('x')
 
         x = x + 1e-8
@@ -515,15 +515,15 @@ class PoolFire(FireModel):
         
         return radius
         
-    def fit(self, border_gises=None, grid_gises=None, interval=100, eta=0.24, 
+    def fit(self, border_gcs=None, grid_gcs=None, interval=100, eta=0.24, 
             theta=1.0, hst_level=None):
         """
         方法用于拟合发生池火灾时给定矩形区域内的热辐射强度分布或危险系数分布。
 
         Parameters:
-            'border_gises' - python list 对象，目标拟合矩形区域边界 4 个角点的 GIS 坐标，
+            'border_gcs' - python list 对象，目标拟合矩形区域边界 4 个角点的 GIS 坐标，
                              list 对象的每个元素是一个表示 GIS 位置的 list 对象，即[经度, 纬度]。
-            'grid_gises'   - python list 对象，目标拟合矩形区域网格化后每个网格点的 GIS 坐标集合，
+            'grid_gcs'   - python list 对象，目标拟合矩形区域网格化后每个网格点的 GIS 坐标集合，
                              list 对象的每个元素是一个表示网格点 GIS 位置的 list对象，即[经度，纬度]。
             'interval'     - 网格化矩形区域时每个网格点之间的间隔，单位：m。
             'eta'          - 燃烧效率因子。
@@ -539,27 +539,27 @@ class PoolFire(FireModel):
         
         Note:
             使用该方法时，必须指定事故点的经纬度，即 env_params 中添加 'center_gis' 键值对。
-            border_gises 和 grid_gises 不能同时为 None，优先使用 grid_gises 参数值，对于给定边界角点
+            border_gcs 和 grid_gcs 不能同时为 None，优先使用 grid_gcs 参数值，对于给定边界角点
             经纬度时，方法会自动对区域进行网格化。
             interval 参数的值越小则网格点越密集，结果越精确，但计算代价也越高。
         """
-        assert not (border_gises is None) or not (grid_gises is None), \
-                self.assert_info('border_gises and grid_gises both')
+        assert not (border_gcs is None) or not (grid_gcs is None), \
+                self.assert_info('border_gcs and grid_gcs both')
         if not ( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
 
-        if grid_gises is None:
-            grid_gises = utils.area_gridding(border_gises, interval)
+        if grid_gcs is None:
+            grid_gcs = utils.area_gridding(border_gcs, interval)
 
-        hrs = map(lambda x: self.calc_heat_radiation_strength(pgis=x, eta=eta, 
-            theta=theta, cache=False), grid_gises)
+        hrs = map(lambda x: self.calc_heat_radiation_strength(gc=x, eta=eta, 
+            theta=theta, cache=False), grid_gcs)
         hrs = list(hrs)
         
         if hst_level:
             assert hst_level > 0, self.assert_info('hst_level')
             coeff = (pd.Series(hrs) / hst_level).clip(upper=1.0)
-            res = zip(grid_gises, coeff.tolist())
+            res = zip(grid_gcs, coeff.tolist())
         else: 
-            res = zip(grid_gises, hrs)
+            res = zip(grid_gcs, hrs)
 
         self._add_result('fit_results', res)
 
@@ -806,13 +806,13 @@ def module_test():
     gas_env_params = pd.Series({'tnt_explosive_energy': 4675,
                                 'material_volume': None,
                                 'material_weight': 23700,
-                                'center_gis': [121.065, 30.575]})
+                                'center_gc': [121.065, 30.575]})
     
     gas = VaporCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
     gas.calc_wave_radius(0.1)
 
     points = [[121.03, 30.5], [121.03, 30.65], [121.10, 30.5], [121.10, 30.65]]
-    pprint(type((gas.fit(border_gises=points))))
+    pprint(type(gas.fit(border_gcs=points)))
     
     rawoil_mat_params = {'boiling_point': None,
                          'combustion_heat': 41030000,
@@ -821,7 +821,8 @@ def module_test():
                          'burning_speed': 0.0781}
     rawoil_env_params = {'env_temp': 25,
                          'pool_radius': 24.7,
-                         'air_density': 1.293}
+                         'air_density': 1.293,
+                         'center_gc': [121.065, 30.575]}
     mat_params = pd.Series(rawoil_mat_params)
     env_params = pd.Series(rawoil_env_params)
     
@@ -830,6 +831,7 @@ def module_test():
     rawoil.calc_heat_radiation_radius(strength=37500, eta=0.35)
     rawoil.calc_heat_radiation_radius(strength=25000, eta=0.35)
     rawoil.calc_heat_radiation_radius(strength=12500, eta=0.35)
+    print(type(rawoil.fit(border_gcs=points)))
     print(rawoil.get_info())
     
     env_params = pd.Series({'wind_speed': 1.5,

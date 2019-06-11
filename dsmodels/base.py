@@ -16,7 +16,7 @@ class SecurityModel(ABC):
         'plot' - 方法用于绘制区域热力图。
     """
     _MAT_NE_PARAMS = pd.Series()
-    _ENV_NE_PARAMS = pd.Series(['center_gis'])
+    _ENV_NE_PARAMS = pd.Series(['center_gc'])
     
     def __init__(self, material='', mat_params=pd.Series(), env_params=pd.Series()):
         """
