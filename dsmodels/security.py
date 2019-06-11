@@ -259,6 +259,7 @@ class VaporCloudExplosion(ExplosionModel):
         ops = list(ops)
         
         if hst_level:
+            assert hst_level > 0, self.assert_info('hst_level')
             coeff = (pd.Series(ops) / hst_level).clip(upper=1.0)
             res = zip(grid_gises, coeff.tolist())
         else: 
@@ -454,7 +455,7 @@ class PoolFire(FireModel):
         
         return heat_radiation
         
-    def calc_heat_radiation_strength(self, x, eta=0.24, theta=1.0):
+    def calc_heat_radiation_strength(self, x=None, pgis=None, eta=0.24, theta=1.0, cache=True):
         """
         方法用于计算距离池火事故点中心 x 米处的目标热辐射强度。
         
@@ -470,14 +471,21 @@ class PoolFire(FireModel):
             ZeroDivisionError - 除数为 0 异常。
             AssertionError       - 模型参数空值断言异常。
         """   
-        assert x > 0, self.assert_info('x')
         assert theta > 0, self.assert_info('theta')
+        assert not (pgis is None) or not (x is None), self.assert_info('x and pgis both')
+
+        if x is None:
+            x = utils.calc_gisdistance(self.get_environment_params['center_gis'], pgis)
+        else: assert x >= 0, self.assert_info('x')
+
+        x = x + 1e-8
         
         heat_radiation = self.calc_heat_radiation(eta)
         heat_radiation_strength = (heat_radiation * theta) / (4 * math.pi * math.pow(x, 2))
         
         self._add_environment_param('theta', theta)
-        self._add_result('d{}'.format(x), heat_radiation_strength)
+        if cache:
+            self._add_result('d{}'.format(x), heat_radiation_strength)
         
         return heat_radiation_strength
         
@@ -507,7 +515,55 @@ class PoolFire(FireModel):
         
         return radius
         
-    def fit(self): pass
+    def fit(self, border_gises=None, grid_gises=None, interval=100, eta=0.24, 
+            theta=1.0, hst_level=None):
+        """
+        方法用于拟合发生池火灾时给定矩形区域内的热辐射强度分布或危险系数分布。
+
+        Parameters:
+            'border_gises' - python list 对象，目标拟合矩形区域边界 4 个角点的 GIS 坐标，
+                             list 对象的每个元素是一个表示 GIS 位置的 list 对象，即[经度, 纬度]。
+            'grid_gises'   - python list 对象，目标拟合矩形区域网格化后每个网格点的 GIS 坐标集合，
+                             list 对象的每个元素是一个表示网格点 GIS 位置的 list对象，即[经度，纬度]。
+            'interval'     - 网格化矩形区域时每个网格点之间的间隔，单位：m。
+            'eta'          - 燃烧效率因子。
+            'theta'        - 空气热传导系数。
+            'hst_level'    - 最高危险等级对应的热辐射强度，如果不指定则返回热辐射强度的分布，单位：W。
+
+        Returns:
+            python zip 对象，每个元素为经纬度和对应的冲击波超压或危险系数，
+                             即[[经度, 纬度], 超压或危险系数]。
+
+        Raise:
+            AssertionError
+        
+        Note:
+            使用该方法时，必须指定事故点的经纬度，即 env_params 中添加 'center_gis' 键值对。
+            border_gises 和 grid_gises 不能同时为 None，优先使用 grid_gises 参数值，对于给定边界角点
+            经纬度时，方法会自动对区域进行网格化。
+            interval 参数的值越小则网格点越密集，结果越精确，但计算代价也越高。
+        """
+        assert not (border_gises is None) or not (grid_gises is None), \
+                self.assert_info('border_gises and grid_gises both')
+        if not ( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
+
+        if grid_gises is None:
+            grid_gises = utils.area_gridding(border_gises, interval)
+
+        hrs = map(lambda x: self.calc_heat_radiation_strength(pgis=x, eta=eta, 
+            theta=theta, cache=False), grid_gises)
+        hrs = list(hrs)
+        
+        if hst_level:
+            assert hst_level > 0, self.assert_info('hst_level')
+            coeff = (pd.Series(hrs) / hst_level).clip(upper=1.0)
+            res = zip(grid_gises, coeff.tolist())
+        else: 
+            res = zip(grid_gises, hrs)
+
+        self._add_result('fit_results', res)
+
+        return res
     
     def plot(self): pass
     

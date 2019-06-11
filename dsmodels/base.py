@@ -388,7 +388,8 @@ class GasDiffusionModel(SecurityModel):
     def calc_declination(self):
         """
         方法用于计算赤纬。根据国标标准 《GB/T13201-91》计算所给公式计算。
-        δ = [0.006918 - 0.399912cosθ + 0.070257sinθ - 0.006758cos2θ + 0.000907sin2θ - 0.002697cos3θ + 0.00148sin3θ] * 180 / π
+        δ = [0.006918 - 0.399912cosθ + 0.070257sinθ - 0.006758cos2θ + 0.000907sin2θ 
+        - 0.002697cos3θ + 0.00148sin3θ] * 180 / π
         
         Parameters:
             None
@@ -408,7 +409,8 @@ class GasDiffusionModel(SecurityModel):
         
         declination = (0.006918 - 0.399912 * math.cos(theta) + 0.070257 * math.sin(theta)\
                         - 0.006758 * math.cos(2 * theta) + 0.000907 * math.sin(2 * theta)\
-                        - 0.002697 * math.cos(3 * theta) + 0.00148 * math.sin(3 * theta)) * (180 / math.pi)
+                        - 0.002697 * math.cos(3 * theta) + 0.00148 * math.sin(3 * theta))\
+                        * (180 / math.pi)
         self._add_result('declination', declination)
         
         return declination
@@ -424,7 +426,7 @@ class GasDiffusionModel(SecurityModel):
             None
         
         Returns:
-            太阳高度角，单位：°
+            太阳高度角，单位：°。
         
         Raises:
             AssertionError
