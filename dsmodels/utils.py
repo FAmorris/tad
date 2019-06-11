@@ -32,13 +32,13 @@ def calc_gisdistance(gis1, gis2):
         c1 = (math.sin(xx) - xx) * (math.sin(pA) + math.sin(pB) ** 2 / math.cos(xx / 2)) ** 2
         c2 = (math.sin(xx) + xx) * (math.sin(pA) - math.sin(pB) ** 2 / math.cos(xx / 2)) ** 2
         dr = flatten / 8 * (c1 - c2)
-        distance = ra * (xx + dr)
+        distance = ra * (xx + dr) * 1e3
     except ZeroDivisionError: distance = 0.0
 
     return distance
 
 
-def area_gridding(gises, interval=500):
+def area_gridding(gises, interval=100):
     """
     函数根据矩形区域 4 个角点的 GIS 经纬度，将矩形区域网格化。
 
@@ -73,7 +73,7 @@ def area_gridding(gises, interval=500):
 
 def module_test():
     from pprint import pprint
-    print(calc_gisdistance((120, 30), (120., 30)))
+    print(calc_gisdistance([121.03538461538461, 30.6453125], [121.065, 30.575]))
     
     points = [[121.03, 30.5], [121.03, 30.65], [121.10, 30.5], [121.10, 30.65]]
     pprint(area_gridding(points))

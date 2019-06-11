@@ -1,5 +1,3 @@
-# coding: utf-8
-
 import math
 import pandas as pd
 import numpy as np
@@ -180,21 +178,19 @@ class VaporCloudExplosion(ExplosionModel):
             'ZeroDivisionError' - 除数为 0 异常。
             'AssertionError'。
         """
-        assert (x is None) and (pgis is None), self.assert_info('x and pgis both')
-        center_gis = self.get_environment_params()['center_gis']
+        assert not (x is None) or not (pgis is None), self.assert_info('x and pgis both')
 
-        if x: 
-            assert x > 0, self.assert_info('x')
-            x = x
-        else:
+        if x is None:
+            center_gis = self._env_params['center_gis']
             x = utils.calc_gisdistance(center_gis, pgis)
+
+        x = x + 1e-8
 
         tnt_weight = self.calc_turn_tnt(alpha, beta)
         relative_dis = x / (0.1 * math.pow(tnt_weight, 1 / 3))
         wave_overpressure = self.tnt_overpressure_of(relative_dis)
-        if wave_overpressure < 0: wave_overpressure = 0.0
         if cache:
-            self._add_environment_param('relative_distance: {x}m'.format(x), relative_dis)
+            self._add_environment_param('relative_distance:{x}m'.format(x=x), relative_dis)
             self._add_result('d{x}'.format(x=x), wave_overpressure)
         
         return wave_overpressure
@@ -214,31 +210,63 @@ class VaporCloudExplosion(ExplosionModel):
         Raises:
             
         """
-        assert p > 0.0, self.assert_info('p')
+        assert p > 0, self.assert_info('p')
         
         tnt_weight = self.calc_turn_tnt(alpha, beta)
         relative_dis = self.tnt_distance_of(p)
         wave_radius = 0.1 * math.pow(tnt_weight, 1 / 3) * relative_dis
-        if wave_radius < 0: wave_radius = 0.0
-        self._add_result('p{p})'.format(p=p), wave_radius)
+        self._add_result('p{p}'.format(p=p), wave_radius)
         self._add_environment_param('relative_distance:{p}Mpa'.format(p=p), relative_dis)
 
         return wave_radius
         
-    def fit(self, border_gises, interval=500, alpha=0.04, beta=1.8, hst_level=None):
-        if not( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
+    def fit(self, border_gises=None, grid_gises=None, interval=100, alpha=0.04, 
+            beta=1.8, hst_level=None):
+        """
+        方法用于拟合发生蒸汽云爆炸时给定矩形区域内的冲击波分布或危险系数分布。
 
-        grid_points = utils.area_gridding(border_gises, interval)
-        ops = map(lambda x: self.calc_wave_overpressure(pgis=x, alpha=alpha, beta=beta, cache=False),
-                grid_points)
+        Parameters:
+            'border_gises' - python list 对象，目标拟合矩形区域边界 4 个角点的 GIS 坐标，
+                             list 对象的每个元素是一个表示 GIS 位置的 list 对象，即[经度, 纬度]。
+            'grid_gises'   - python list 对象，目标拟合矩形区域网格化后每个网格点的 GIS 坐标集合，
+                             list 对象的每个元素是一个表示网格点 GIS 位置的 list对象，即[经度，纬度]。
+            'interval'     - 网格化矩形区域时每个网格点之间的间隔，单位：m。
+            'alpha'        - TNT 当量系数。
+            'beta'         - 地面爆炸系数。
+            'hst_level'    - 最高危险等级对应的冲击波超压，如果不指定则返回冲击波超压的分布，单位：Mpa
+
+        Returns:
+            python zip 对象，每个元素为经纬度和对应的冲击波超压或危险系数，
+                             即[[经度, 纬度], 超压或危险系数]。
+
+        Raise:
+            AssertionError
+        
+        Note:
+            使用该方法时，必须指定事故点的经纬度，即 env_params 中添加 'center_gis' 键值对。
+            border_gises 和 grid_gises 不能同时为 None，优先使用 grid_gises 参数值，对于给定边界角点
+            经纬度时，方法会自动对区域进行网格化。
+            interval 参数的值越小则网格点越密集，结果越精确，但计算代价也越高。
+        """
+        assert not (border_gises is None) or not (grid_gises is None), \
+                self.assert_info('border_gises and grid_gises both')
+        if not ( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
+
+        if grid_gises is None:
+            grid_gises = utils.area_gridding(border_gises, interval)
+        ops = map(lambda x: self.calc_wave_overpressure(pgis=x, alpha=alpha, 
+            beta=beta, cache=False), grid_gises)
         ops = list(ops)
         
         if hst_level:
             coeff = (pd.Series(ops) / hst_level).clip(upper=1.0)
-            results = zip(grid_points, coeff)
-        else: results = zip(grid_points, ops)
+            res = zip(grid_gises, coeff.tolist())
+        else: 
+            res = zip(grid_gises, ops)
 
-        return results
+        self._add_result('fit_results', res)
+
+        return res
     
     def plot(self): pass
     
@@ -716,15 +744,19 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         
 def module_test():
     import pandas as pd
+    from pprint import pprint
     gas_mat_params = pd.Series({'material_density': 0.79 * 1e3,
                                 'combustion_heat': 45980})
     gas_env_params = pd.Series({'tnt_explosive_energy': 4675,
                                 'material_volume': None,
-                                'material_weight': 23700})
+                                'material_weight': 23700,
+                                'center_gis': [121.065, 30.575]})
     
     gas = VaporCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
     gas.calc_wave_radius(0.1)
-    print(gas.get_info())
+
+    points = [[121.03, 30.5], [121.03, 30.65], [121.10, 30.5], [121.10, 30.65]]
+    pprint(type((gas.fit(border_gises=points))))
     
     rawoil_mat_params = {'boiling_point': None,
                          'combustion_heat': 41030000,
@@ -755,7 +787,6 @@ def module_test():
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
     res = h2.calc_distribution([30], 360, srch=5, step=10)
     print(h2.get_info())
-    print(res)
     
 if '__main__' == __name__: 
     module_test()

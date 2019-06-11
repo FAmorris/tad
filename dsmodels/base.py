@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from abc import ABC, abstractmethod
 from datetime import datetime
 import math
@@ -46,17 +44,17 @@ class SecurityModel(ABC):
     
     def set_material_params(self, mat_params): self._mat_params = mat_params.copy()
     
-    def get_material_params(self): return self._mat_params.copy()
+    def get_material_params(self): return self._mat_params
     
     def set_environment_params(self, env_params): self._env_params = env_params.copy()
     
-    def get_environment_params(self): return self._env_params.copy()
+    def get_environment_params(self): return self._env_params
     
     def _add_result(self, param, value): self._results[param] = value
     
     def _add_environment_param(self, param, value): self._env_params[param] = value
     
-    def get_results(self): return self._results.copy()
+    def get_results(self): return self._results
     
     def assert_info(self, param): return 'parameter "{param}" loss or error.'.format(param=param)
     
@@ -88,21 +86,21 @@ class SecurityModel(ABC):
         info += '-' * width + '\n'
         mat_params = self.get_material_params()
         for i, v in mat_params.iteritems():
-            info += item_fmt.format(p=i, v=v) + '\n'
+            info += item_fmt.format(p=i, v=str(v)) + '\n'
         info += '=' * width + '\n'
         
         info += item_fmt.format(p='Environment Parameter', v='Value') + '\n'
         info += '-' * width + '\n'
         env_params = self.get_environment_params()
         for i, v in env_params.iteritems():
-            info += item_fmt.format(p=i, v=v) + '\n'
+            info += item_fmt.format(p=i, v=str(v)) + '\n'
         info += '=' * width + '\n'
         
         info += item_fmt.format(p='Result', v='Value') + '\n'
         info += '-' * width + '\n'
         results = self.get_results()
         for i, v in results.iteritems():
-            info += item_fmt.format(p=i, v=v) + '\n'
+            info += item_fmt.format(p=i, v=str(v)) + '\n'
         info += '=' * width + '\n'
         
         return info
@@ -176,9 +174,13 @@ class ExplosionModel(SecurityModel):
         Raises:
         
         """
-        assert distance >= 0.0, self.assert_info('distance')
-        
-        return splev(distance, self._get_pod_poly())
+        assert distance >= 0, self.assert_info('distance')
+
+        if distance > 75: overpressure = 0
+        elif distance < 5: overpressure = 3
+        else: overpressure = float(splev(distance, self._get_pod_poly()))
+
+        return overpressure
         
     def tnt_distance_of(self, overpressure): 
         """
@@ -193,9 +195,13 @@ class ExplosionModel(SecurityModel):
         Raises:
         
         """
-        assert overpressure > 0.0, self.assert_info()
+        assert overpressure >= 0, self.assert_info()
+
+        if overpressure > 3: distance = 4
+        elif overpressure < 0.01: distance = 80
+        else: distance = float(splev(overpressure, self._get_dop_poly()))
         
-        return splev(overpressure, self._get_dop_poly())
+        return distance
 
     @staticmethod
     def get_necessary_mat_params():
