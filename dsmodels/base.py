@@ -265,14 +265,14 @@ class GasDiffusionModel(SecurityModel):
     赤纬计算、大气稳定度计算、扩散参数系数计算、扩散参数计算
     """
     
-    # 太阳辐射等级表
+    # 太阳辐射等级表(solar radiation level)
     _SRLT = pd.DataFrame([[-2, -1, 1, 2, 3],
                           [-1, 0, 1, 2, 3],
                           [-1, 0, 0, 1, 1],
                           [0, 0, 0, 0, 1],
                           [0, 0, 0, 0, 0]])
                           
-    # 大气稳定度
+    # 大气稳定度(atmospheric stability)
     _AST = pd.DataFrame([['A', 'A~B', 'B', 'D', 'E', 'F'],
                          ['A~B', 'B', 'C', 'D', 'E', 'F'],
                          ['B', 'B~C', 'C', 'D', 'D', 'E'],
@@ -280,7 +280,7 @@ class GasDiffusionModel(SecurityModel):
                          ['D', 'D', 'D', 'D', 'D', 'D']], 
                          columns=['3', '2', '1', '0', '-1', '-2'])
     
-    # 大气扩散参数系数表索引
+    # 大气扩散参数系数表索引(diffusion parameters coeffition)
     _DPCT_INDEX=[['A', 'A', 'A',
                   'A~B', 'A~B',
                   'B', 'B',
@@ -338,9 +338,7 @@ class GasDiffusionModel(SecurityModel):
                           columns=['alpha1', 'gama1', 'alpha2', 'gama2'])
     
     _MAT_NE_PARAMS = pd.Series()
-    _ENV_NE_PARAMS = pd.Series(['center_longtitude',
-                                'center_latitude',
-                                'total_cloudiness',
+    _ENV_NE_PARAMS = pd.Series(['total_cloudiness',
                                 'low_cloudiness',
                                 'wind_speed',
                                 'start_datetime'])
@@ -351,8 +349,7 @@ class GasDiffusionModel(SecurityModel):
         
         Parameters:
             'env_params' - pandas Series 对象，参数中必须包含以下 key - values
-                'center_longtitude' - 区域经度，单位：°。
-                'center_latitude'   - 区域纬度，单位：°。
+                'center_gc'         - 事故点地理坐标，[经度, 纬度]，单位：°。
                 'total_cloudiness'  - 建模时环境总云量。
                 'low_cloudiness'    - 建模时环境低云量。
                 'wind_speed'        - 建模时环境风速，单位：m/s。
@@ -375,15 +372,12 @@ class GasDiffusionModel(SecurityModel):
         self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
                                       env_params[env_params.isnull()]], sort=False)
         
-        if 'start_datetime' in self._nan_params:
-            self._env_params['start_datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self._nan_params.drop('start_datetime', inplace=True)
     
-    def _get_srlt(self): return self._srlt.copy()
+    def _get_srlt(self): return self._srlt
     
-    def _get_ast(self): return self._ast.copy()
+    def _get_ast(self): return self._ast
     
-    def _get_dpct(self): return self._dpct.copy()
+    def _get_dpct(self): return self._dpct
         
     def calc_declination(self):
         """
@@ -400,11 +394,14 @@ class GasDiffusionModel(SecurityModel):
         Raises:
             None
         """
-        env_params = self.get_environment_params()
-        sdt = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S')
-        day = sdt.timetuple().tm_yday
-        
+
+        if 'start_datetime' in self._nan_params:
+            day = datetime.now().strftime('%Y-%m-%d %H:%M:%S').timetuple().tm_yday
+        else: 
+            day = self.get_environment_params()['start_datetime'].timetuple().tm_yday
+
         if 366 == day: day = 365
+
         theta = 360 * day / 365
         
         declination = (0.006918 - 0.399912 * math.cos(theta) + 0.070257 * math.sin(theta)\
@@ -432,13 +429,15 @@ class GasDiffusionModel(SecurityModel):
             AssertionError
         """
         env_params = self.get_environment_params()
-        lgt = env_params['center_longtitude']
-        lat = env_params['center_latitude']
+        lgt = env_params['center_gc'][0]
+        lat = env_params['center_gc'][1]
         
-        assert lat >= 0, self.assert_info('center_latitude')
-        assert lgt >= 0, self.assert_info('center_longtitude')
+        assert lat >= 0 and lgt >= 0, self.assert_info('center_gc')
         
-        hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
+        if 'start_datetime' in self._nan_params:
+            hour = datetime.now().hour
+        else: 
+            hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
         
         declination = self.calc_declination()
         tmp = 15 * hour + lgt - 300
@@ -470,7 +469,10 @@ class GasDiffusionModel(SecurityModel):
         assert lc >= 0, self.assert_info('low_cloudiness')
         assert tc >= lc, self.assert_info('total_cloudiness, low_cloudiness')
         
-        hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
+        if 'start_datetime' in self._nan_params:
+            hour = datetime.now().hour
+        else: 
+            hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
         
         # 云量
         if (tc <= 4 and lc <= 4): row = 0
@@ -527,13 +529,13 @@ class GasDiffusionModel(SecurityModel):
         
         return atmospheric_stability
         
-    def get_diffusion_param_coeffs(self, pgis=None, hdis=-1):
+    def get_diffusion_param_coeffs(self, hdis=None, gc=None):
         """
         方法用于获取气体扩散参数系数，包括 y 轴扩散参数系数和 z 轴扩散参数系数。
         
         Parameters:
-            'pgis' - python array-like 对象，计算地地理坐标 [经度，纬度]。
             'hdis' - 下风向距离，单位：m。
+            'gc'   - python array-like 对象，计算位置的地理坐标 [经度，纬度]。
             
         Returns:
             python tuple 对象，
@@ -544,10 +546,16 @@ class GasDiffusionModel(SecurityModel):
             AssertionError
             
         Note:
-            必须给定 gis 坐标或下风向距离。两者都指定时优先使用 hdis
+            必须给定地理坐标或下风向距离。两者都指定时优先使用 hdis。
         """
-        assert pgis or hdis >= 0, self.assert_info('pgis, hdis')
-        if pgis: assert (2 == len(pgis)) and (pgis[0] >= 0) and (pgis[1] >= 0), self.assert_info('pgis')
+        assert not (gc is None) or not (hdis is None), self.assert_info('pgis, hdis')
+        
+        # 如果未指定下风向水平距离，则根据地理坐标计算下风向距离。
+        if hdis is None:
+            x = utils.calc_geographical_distance(self.get_environment_params()['center_gc'], gc)
+        else:
+            assert hdis >= 0, self.assert_info('hdis')
+            x = hdis
         
         atmos_stat = self.get_atmospheric_stability()
         dpct = self._get_dpct()
@@ -555,8 +563,6 @@ class GasDiffusionModel(SecurityModel):
         vdpcgs = dpcs[['alpha1', 'gama1']]
         ddpcgs = dpcs[['alpha2', 'gama2']]
         
-        # 计算下风向距离。
-        x = hdis if hdis >= 0 else calc_gisdistance(pgis)
         
         if 'A' == atmos_stat:
             if 0 < x <= 300:
@@ -616,7 +622,7 @@ class GasDiffusionModel(SecurityModel):
         
         return vdpcg.tolist() + ddpcg.tolist(), x
     
-    def calc_diffusion_parameters(self, pgis=None, hdis=-1, freq=30):
+    def calc_diffusion_parameters(self, hdis=None, gc=None, freq=30):
         """
         方法用于计算扩散参数。
         
@@ -637,7 +643,7 @@ class GasDiffusionModel(SecurityModel):
         """
         assert 30 <= freq < 6000, self.assert_info('freq')
         
-        results = self.get_diffusion_param_coeffs(pgis, hdis)
+        results = self.get_diffusion_param_coeffs(hdis=hdis, gc=gc)
         dpcgs = results[0]
         x = results[1]
         freq_h = freq / 60
@@ -648,8 +654,8 @@ class GasDiffusionModel(SecurityModel):
         q = 0.2 if 0.5 <= freq_h < 1 else 0.3
         
         sigma_y *= math.pow(freq_h / 0.5, q)
-        self._add_result('sigma_y(m)', sigma_y)
-        self._add_result('sigma_z(m)', sigma_z)
+        self._add_result('sigma_y', sigma_y)
+        self._add_result('sigma_z', sigma_z)
         
         return sigma_y, sigma_z
     

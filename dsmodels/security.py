@@ -687,7 +687,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         hdis += 1e-32
         y = vdis
         
-        sigma_y, sigma_z = self.calc_diffusion_parameters(pgis, hdis)
+        sigma_y, sigma_z = self.calc_diffusion_parameters(gc=pgis, hdis=hdis)
         source_strength = self.calc_source_strength()
         
         a1 = source_strength / (math.pi * wind_speed * sigma_y * sigma_z)
@@ -835,8 +835,7 @@ def module_test():
     print(rawoil.get_info())
     
     env_params = pd.Series({'wind_speed': 1.5,
-                            'center_longtitude': 121.0583333,
-                            'center_latitude': 30.62083333,
+                            'center_gc': [121.0583333, 30.62083333],
                             'total_cloudiness': 5,
                             'low_cloudiness': 4,
                             'source_strength': 25000,
