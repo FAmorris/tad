@@ -1,6 +1,8 @@
 import math
+
 import numpy as np
 import pandas as pd
+
 
 def calc_geographical_distance(gc1, gc2):
     """
@@ -18,7 +20,8 @@ def calc_geographical_distance(gc1, gc2):
     
     """
     assert (2 == len(gc1)) and (2 == len(gc2)), 'gc1 or gc2 length error.'
-    for i in gc1 + gc2: assert i >= 0, 'gc1 or gc2 error'
+    for i in gc1 + gc2:
+        assert i >= 0, 'gc1 or gc2 error'
 
     try:
         ra = 6378.140
@@ -27,13 +30,13 @@ def calc_geographical_distance(gc1, gc2):
         rad_lng_A, rad_lat_A, rad_lng_B, rad_lat_B = map(math.radians, gc1 + gc2)
         pA = math.atan(rb / ra * math.tan(rad_lat_A))
         pB = math.atan(rb / ra * math.tan(rad_lat_B))
-        xx = math.acos(math.sin(pA) * math.sin(pB) + math.cos(pA) * math.cos(pB)
-                * math.cos(rad_lng_A - rad_lng_B))
-        c1 = (math.sin(xx) - xx) * (math.sin(pA) + math.sin(pB) ** 2 / math.cos(xx / 2)) ** 2
-        c2 = (math.sin(xx) + xx) * (math.sin(pA) - math.sin(pB) ** 2 / math.cos(xx / 2)) ** 2
-        dr = flatten / 8 * (c1 - c2)
-        distance = ra * (xx + dr) * 1e3
-    except ZeroDivisionError: distance = 0.0
+        xx = math.acos(math.sin(pA)*math.sin(pB) + math.cos(pA)*math.cos(pB)*math.cos(rad_lng_A - rad_lng_B))
+        c1 = (math.sin(xx) - xx)*(math.sin(pA) + math.sin(pB)**2 / math.cos(xx / 2))**2
+        c2 = (math.sin(xx) + xx)*(math.sin(pA) - math.sin(pB)**2 / math.cos(xx / 2))**2
+        dr = flatten/8 * (c1-c2)
+        distance = ra * (xx+dr) * 1e3
+    except ZeroDivisionError:
+        distance = 0.0
 
     return distance
 
@@ -54,7 +57,8 @@ def area_gridding(gcs, interval=100):
         AssertionError
     """
     assert 4 == len(gcs), 'parameter "gcs" length error.'
-    for gc in gcs: assert 2 == len(gc), '"gc" length error.'
+    for gc in gcs:
+        assert 2 == len(gc), '"gc" length error.'
     border = pd.DataFrame(gcs)
     desc = border.describe()
 
@@ -65,12 +69,9 @@ def area_gridding(gcs, interval=100):
     xsteps = round((xmax - xmin) / (0.00001 * interval / 1))
     ysteps = round((ymax - ymin) / (0.00001 * interval / 1.1))
     
-    xborder, yborder = np.meshgrid(np.linspace(xmin, xmax, int(xsteps)),
-            np.linspace(ymin, ymax, int(ysteps)))
+    xborder, yborder = np.meshgrid(np.linspace(xmin, xmax, int(xsteps)), np.linspace(ymin, ymax, int(ysteps)))
 
     return np.concatenate([xborder.reshape((-1, 1)), yborder.reshape((-1, 1))], axis=1).tolist()
-
-
 
 
 def module_test():
@@ -79,4 +80,6 @@ def module_test():
     
     points = [[121.03, 30.5], [121.03, 30.65], [121.10, 30.5], [121.10, 30.65]]
 
-if '__main__' == __name__: module_test()
+
+if '__main__' == __name__:
+    module_test()

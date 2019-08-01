@@ -1,13 +1,15 @@
-from abc import ABC, abstractmethod
-from datetime import datetime
 import math
-import pandas as pd
-from scipy.interpolate import splev, splrep
 import sys
 import os
+from abc import ABC, abstractmethod
+from datetime import datetime
+
+import pandas as pd
+from scipy.interpolate import splev, splrep
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-import utils
+from . import utils
+
 
 class SecurityModel(ABC):
     """
@@ -133,8 +135,6 @@ class ExplosionModel(SecurityModel):
         Raises:
         
         """
-        
-                      
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
         self._polyfit()
     
@@ -147,7 +147,6 @@ class ExplosionModel(SecurityModel):
         方法采用三次样条插值算法拟合 1000kg TNT 产生的超压和距离之间的关系式。
         
         Parameters:
-            None
             
         Returns:
             None
@@ -176,9 +175,12 @@ class ExplosionModel(SecurityModel):
         """
         assert distance >= 0, self.assert_info('distance')
 
-        if distance > 75: overpressure = 0
-        elif distance < 5: overpressure = 3
-        else: overpressure = float(splev(distance, self._get_pod_poly()))
+        if distance > 75:
+            overpressure = 0
+        elif distance < 5:
+            overpressure = 3
+        else:
+            overpressure = float(splev(distance, self._get_pod_poly()))
 
         return overpressure
         
@@ -195,10 +197,12 @@ class ExplosionModel(SecurityModel):
         Raises:
         
         """
-        assert overpressure >= 0, self.assert_info()
+        assert overpressure >= 0, self.assert_info('overpressure')
 
-        if overpressure > 3: distance = 4
-        elif overpressure < 0.01: distance = 80
+        if overpressure > 3:
+            distance = 4
+        elif overpressure < 0.01:
+            distance = 80
         else: distance = float(splev(overpressure, self._get_dop_poly()))
         
         return distance
@@ -281,28 +285,28 @@ class GasDiffusionModel(SecurityModel):
                          columns=['3', '2', '1', '0', '-1', '-2'])
     
     # 大气扩散参数系数表索引(diffusion parameters coeffition)
-    _DPCT_INDEX=[['A', 'A', 'A',
-                  'A~B', 'A~B',
-                  'B', 'B',
-                  'B~C', 'B~C',
-                  'C', 'C',
-                  'C~D', 'C~D', 'C~D',
-                  'D', 'D', 'D',
-                  'D~E', 'D~E', 'D~E',
-                  'E', 'E', 'E',
-                  'E~F', 'E~F', 'E~F',
-                  'F', 'F', 'F'],
-                 [0, 1, 2,
-                  1, 2,
-                  1, 2,
-                  1, 2,
-                  1, 2,
-                  0, 1, 2,
-                  0, 1, 2,
-                  0, 1, 2,
-                  0, 1, 2,
-                  0, 1, 2,
-                  0, 1, 2]]
+    _DPCT_INDEX = [['A', 'A', 'A',
+                    'A~B', 'A~B',
+                    'B', 'B',
+                    'B~C', 'B~C',
+                    'C', 'C',
+                    'C~D', 'C~D', 'C~D',
+                    'D', 'D', 'D',
+                    'D~E', 'D~E', 'D~E',
+                    'E', 'E', 'E',
+                    'E~F', 'E~F', 'E~F',
+                    'F', 'F', 'F'],
+                   [0, 1, 2,
+                    1, 2,
+                    1, 2,
+                    1, 2,
+                    1, 2,
+                    0, 1, 2,
+                    0, 1, 2,
+                    0, 1, 2,
+                    0, 1, 2,
+                    0, 1, 2,
+                    0, 1, 2]]
                           
     # 大气扩散参数系数表
     _DPCT = pd.DataFrame([[0.000000, 0.000000, 1.12154, 0.079990],  # A                垂直 0 ~ 300
@@ -333,9 +337,10 @@ class GasDiffusionModel(SecurityModel):
                           [0.892794, 0.087641, 0.36870, 2.069660],  # E~F 水平 > 1000，垂直 > 10000
                           [0.000000, 0.000000, 0.78440, 0.062077],  # F                垂直 0~1000
                           [0.929418, 0.055363, 0.52597, 0.370015],  # F   水平 0~1000，垂直 1000~10000
-                          [0.888723, 0.073335, 0.32266, 2.406910]], # F   水平 > 1000，垂直 > 10000
-                          index=_DPCT_INDEX,
-                          columns=['alpha1', 'gama1', 'alpha2', 'gama2'])
+                          [0.888723, 0.073335, 0.32266, 2.406910]], index=_DPCT_INDEX, columns=['alpha1',
+                                                                                                'gama1',
+                                                                                                'alpha2',
+                                                                                                'gama2'])
     
     _MAT_NE_PARAMS = pd.Series()
     _ENV_NE_PARAMS = pd.Series(['total_cloudiness',
@@ -371,8 +376,7 @@ class GasDiffusionModel(SecurityModel):
         
         self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
                                       env_params[env_params.isnull()]], sort=False)
-        
-    
+
     def _get_srlt(self): return self._srlt
     
     def _get_ast(self): return self._ast
@@ -386,7 +390,6 @@ class GasDiffusionModel(SecurityModel):
         - 0.002697cos3θ + 0.00148sin3θ] * 180 / π
         
         Parameters:
-            None
         
         Returns:
             赤纬，单位：°。
@@ -400,14 +403,14 @@ class GasDiffusionModel(SecurityModel):
         else: 
             day = self.get_environment_params()['start_datetime'].timetuple().tm_yday
 
-        if 366 == day: day = 365
+        if 366 == day:
+            day = 365
 
-        theta = 360 * day / 365
+        theta = 360*day / 365
         
-        declination = (0.006918 - 0.399912 * math.cos(theta) + 0.070257 * math.sin(theta)\
-                        - 0.006758 * math.cos(2 * theta) + 0.000907 * math.sin(2 * theta)\
-                        - 0.002697 * math.cos(3 * theta) + 0.00148 * math.sin(3 * theta))\
-                        * (180 / math.pi)
+        declination = (0.006918 - 0.399912*math.cos(theta) + 0.070257*math.sin(theta)
+                       - 0.006758*math.cos(2*theta) + 0.000907*math.sin(2*theta)
+                       - 0.002697 * math.cos(3*theta) + 0.00148*math.sin(3*theta)) * (180/math.pi)
         self._add_result('declination', declination)
         
         return declination
@@ -420,7 +423,6 @@ class GasDiffusionModel(SecurityModel):
         λ：当地经度。
         
         Parameters:
-            None
         
         Returns:
             太阳高度角，单位：°。
@@ -441,8 +443,9 @@ class GasDiffusionModel(SecurityModel):
         
         declination = self.calc_declination()
         tmp = 15 * hour + lgt - 300
-        solar_angle = math.asin(math.sin(lat) * math.sin(declination)\
-                    + math.cos(lat) * math.cos(declination) * math.cos(tmp))
+        solar_angle = math.asin(math.sin(lat) * math.sin(declination)
+                                + math.cos(lat) * math.cos(declination)
+                                * math.cos(tmp))
         self._add_result('solar_angle', solar_angle)
         
         return solar_angle
@@ -452,8 +455,7 @@ class GasDiffusionModel(SecurityModel):
         方法用于获取太阳辐射等级。
         
         Parameters:
-            None
-        
+
         Returns:
             太阳辐射等级。
         
@@ -475,21 +477,31 @@ class GasDiffusionModel(SecurityModel):
             hour = datetime.strptime(env_params['start_datetime'], '%Y-%m-%d %H:%M:%S').hour
         
         # 云量
-        if (tc <= 4 and lc <= 4): row = 0
-        elif (5 <= tc < 7) and (lc <= 4): row = 1
-        elif (tc >= 8) and (lc <= 4): row = 2
-        elif (tc >= 5) and (5 <= lc < 7): row = 3
-        elif (tc >= 8) and (lc >= 8): row = 4
+        if (tc <= 4) and (lc <= 4):
+            row = 0
+        elif (5 <= tc < 7) and (lc <= 4):
+            row = 1
+        elif (tc >= 8) and (lc <= 4):
+            row = 2
+        elif (tc >= 5) and (5 <= lc < 7):
+            row = 3
+        elif (tc >= 8) and (lc >= 8):
+            row = 4
         
         # 日间
         if 7 <= hour < 19:
             solar_angle = self.calc_solar_angle()
             
-            if solar_angle <= 15: col = 1
-            elif 15 < solar_angle <= 35: col = 2
-            elif 35 < solar_angle <= 65: col = 3
-            elif solar_angle > 65: col = 4
-        else: col = 0
+            if solar_angle <= 15:
+                col = 1
+            elif 15 < solar_angle <= 35:
+                col = 2
+            elif 35 < solar_angle <= 65:
+                col = 3
+            elif solar_angle > 65:
+                col = 4
+        else:
+            col = 0
         
         solar_radiation_level = self._get_srlt().iloc[row, col]
         self._add_result('solar_radiation_level', solar_radiation_level)
@@ -501,8 +513,7 @@ class GasDiffusionModel(SecurityModel):
         方法用于获取大气稳定度。
 
         Parameters:
-            None
-        
+
         Returns:
             大气稳定程度。
         
@@ -518,11 +529,16 @@ class GasDiffusionModel(SecurityModel):
         srl = str(self.get_solar_radiation_level())
         
         # 风速
-        if 0 < wind_speed <= 1.9: row = 0
-        elif 1.9 < wind_speed <= 2.9: row = 1
-        elif 2.9 < wind_speed <= 4.9: row = 2
-        elif 4.9 < wind_speed <= 5.9: row = 3
-        elif wind_speed >= 6.0: row = 4
+        if 0 < wind_speed <= 1.9:
+            row = 0
+        elif 1.9 < wind_speed <= 2.9:
+            row = 1
+        elif 2.9 < wind_speed <= 4.9:
+            row = 2
+        elif 4.9 < wind_speed <= 5.9:
+            row = 3
+        elif wind_speed >= 6.0:
+            row = 4
         
         atmospheric_stability = self._get_ast().iloc[row][srl]
         self._add_result('atmospheric_stability', atmospheric_stability)
@@ -562,8 +578,7 @@ class GasDiffusionModel(SecurityModel):
         dpcs = dpct.loc[atmos_stat]
         vdpcgs = dpcs[['alpha1', 'gama1']]
         ddpcgs = dpcs[['alpha2', 'gama2']]
-        
-        
+
         if 'A' == atmos_stat:
             if 0 < x <= 300:
                 vdpcg = vdpcgs.loc[1]
@@ -687,7 +702,7 @@ def module_test():
     test = GasDiffusionModel('H3', env_params=env_params)
     test.get_diffusion_param_coeffs(hdis=100)
     print(test.get_info())
-    
-if '__main__' == __name__: module_test()
 
 
+if '__main__' == __name__:
+    module_test()

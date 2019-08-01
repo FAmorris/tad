@@ -1,12 +1,14 @@
 import math
-import pandas as pd
-import numpy as np
 import sys
 import os
+
+import pandas as pd
+import numpy as np
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from base import ExplosionModel, FireModel, GasDiffusionModel
-import utils
+from .base import ExplosionModel, FireModel, GasDiffusionModel
+from . import utils
+
 
 class VaporCloudExplosion(ExplosionModel):
     """
@@ -54,18 +56,15 @@ class VaporCloudExplosion(ExplosionModel):
         """
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
-            
+
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
-        
-        self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
-                                      env_params[env_params.isnull()]], sort=False)
+        self._nan_params = pd.concat([mat_params[mat_params.isnull()], env_params[env_params.isnull()]], sort=False)
     
     def calc_material_weight(self):
         """
         方法用于计算蒸汽云对应的质量。
             
         Parameters:
-            None
         
         Returns:
             蒸汽云对应的质量，单位：kg。
@@ -111,8 +110,9 @@ class VaporCloudExplosion(ExplosionModel):
         env_params = self.get_environment_params()
         results = self.get_results()
 
-        if ('explosive_energy' in results) and (abs(alpha - env_params['alpha']) <= 1e-8)\
-                and (abs(beta - env_params['beta']) <= 1e-8):
+        if (('explosive_energy' in results)
+                and (abs(alpha - env_params['alpha']) <= 1e-8)
+                and (abs(beta - env_params['beta']) <= 1e-8)):
             return results['explosive_energy']
 
         combustion_heat = mat_params['combustion_heat']
@@ -146,8 +146,9 @@ class VaporCloudExplosion(ExplosionModel):
         env_params = self.get_environment_params()
         results = self.get_results()
 
-        if ('tnt_weight' in results) and (abs(alpha - env_params['alpha']) <= 1e-8)\
-                and (abs(beta == env_params['beta']) <= 1e-8):
+        if (('tnt_weight' in results)
+                and (abs(alpha - env_params['alpha']) <= 1e-8)
+                and (abs(beta == env_params['beta']) <= 1e-8)):
             return results['tnt_weight']
         
         if 'tnt_explosive_energy' in self._nan_params:
@@ -178,11 +179,12 @@ class VaporCloudExplosion(ExplosionModel):
             'ZeroDivisionError' - 除数为 0 异常。
             'AssertionError'。
         """
-        assert not (x is None) or not (gc is None), self.assert_info('x and gc both')
+        assert (x is not None) or (gc is not None), self.assert_info('x and gc both')
 
         if x is None:
             x = utils.calc_geographical_distance(self.get_environment_params()['center_gc'], gc)
-        else: assert x > 0, self.assert_info('x')
+        else:
+            assert x > 0, self.assert_info('x')
 
         x = x + 1e-8
 
@@ -220,8 +222,7 @@ class VaporCloudExplosion(ExplosionModel):
 
         return wave_radius
         
-    def fit(self, border_gcs=None, grid_gcs=None, interval=100, alpha=0.04, 
-            beta=1.8, hst_level=None):
+    def fit(self, border_gcs=None, grid_gcs=None, interval=100, alpha=0.04, beta=1.8, hst_level=None):
         """
         方法用于拟合发生蒸汽云爆炸时给定矩形区域内的冲击波分布或危险系数分布。
 
@@ -248,14 +249,13 @@ class VaporCloudExplosion(ExplosionModel):
             经纬度时，方法会自动对区域进行网格化。
             interval 参数的值越小则网格点越密集，结果越精确，但计算代价也越高。
         """
-        assert not (border_gcs is None) or not (grid_gcs is None), \
-                self.assert_info('border_gcs and grid_gcs both')
-        if not ( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
+        assert (border_gcs is not None) or (grid_gcs is not None), self.assert_info('border_gcs and grid_gcs both')
+        if hst_level is not None:
+            assert hst_level > 0, self.assert_info('hst_level')
 
         if grid_gcs is None:
             grid_gcs = utils.area_gridding(border_gcs, interval)
-        ops = map(lambda x: self.calc_wave_overpressure(gc=x, alpha=alpha, 
-            beta=beta, cache=False), grid_gcs)
+        ops = map(lambda x: self.calc_wave_overpressure(gc=x, alpha=alpha, beta=beta, cache=False), grid_gcs)
         ops = list(ops)
         
         if hst_level:
@@ -330,16 +330,14 @@ class PoolFire(FireModel):
             raise KeyError('model parameter is not unique.')
             
         super().__init__(material=material, mat_params=mat_params, env_params=env_params)
-        
-        self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
-                                      env_params[env_params.isnull()]], sort=False)
+        self._nan_params = pd.concat([mat_params[mat_params.isnull()], env_params[env_params.isnull()]], sort=False)
         
     def calc_burning_speed(self):
         """
         方法用于计算池火事故中，液体燃烧物质的燃烧速度。
         
         Parameters:
-            None
+
         Returns: 
             液体燃烧物质的燃烧速度，kg/(m^2·s)。
             
@@ -357,21 +355,21 @@ class PoolFire(FireModel):
         combustion_heat = mat_params['combustion_heat']
         specific_heat_capacity = mat_params['specific_heat_capacity']
         gasification_heat = mat_params['gasification_heat']
+        boiling_point = mat_params['boiling_point']
         
         assert combustion_heat > 0, self.assert_info('combustion_heat')
         assert specific_heat_capacity > 0, self.assert_info('specific_heat_capacity')
         assert gasification_heat > 0, self.assert_info('gasification_heat')
-        assert not 'env_temp' in self._nan_params, self.assert_info('env_temp')
+        assert 'env_temp' not in self._nan_params, self.assert_info('env_temp')
         
         env_temp = env_params['env_temp']
         
         delta_temp = boiling_point - env_temp
         
         if delta_temp > 0:
-            burning_speed = (1e-3 * combustion_heat) / (specific_heat_capacity * delta_temp\
-                    + gasification_heat)
+            burning_speed = 1e-3*combustion_heat / (specific_heat_capacity*delta_temp + gasification_heat)
         else:
-            burning_speed = (1e-3 * combustion_heat) / gasification_heat
+            burning_speed = 1e-3*combustion_heat / gasification_heat
         
         self._env_params['burning_speed'] = burning_speed
 
@@ -382,7 +380,6 @@ class PoolFire(FireModel):
         方法用于计算池火事故中，液体燃烧物质燃烧时火焰高度。
         
         Parameters:
-            None
             
         Returns:
             液体燃烧物质燃烧时的火焰高度，m。
@@ -394,7 +391,7 @@ class PoolFire(FireModel):
         mat_params = self.get_material_params()
         env_params = self.get_environment_params()
         results = self.get_results()
-        
+
         if 'flame_height' in results:
             return results['flame_height']
 
@@ -406,7 +403,7 @@ class PoolFire(FireModel):
         
         burning_speed = self.calc_burning_speed()
         tmp1 = burning_speed / (air_density * math.sqrt(19.6 * pool_radius))
-        flame_height = 84 * pool_radius * math.pow(tmp1, 0.6)
+        flame_height = 84*pool_radius * math.pow(tmp1, 0.6)
         
         self._add_result('flame_height', flame_height)
         
@@ -439,14 +436,13 @@ class PoolFire(FireModel):
         air_density = env_params['air_density']
         combustion_heat = mat_params['combustion_heat']
         
-        assert not ('env_temp' in self._nan_params), self.assert_info('env_temp')
+        assert 'env_temp' not in self._nan_params, self.assert_info('env_temp')
         assert combustion_heat > 0, self.assert_info('combustion_heat')
         assert eta > 0
         
         burning_speed = self.calc_burning_speed()
         flame_height = self.calc_flame_height()
-        tmp1 = math.pi * pool_radius * ( pool_radius + 2 * flame_height)\
-                       * burning_speed * eta * combustion_heat
+        tmp1 = math.pi * pool_radius * (pool_radius + 2*flame_height) * burning_speed * eta * combustion_heat
         tmp2 = 72 * math.pow(burning_speed, 0.6) + 1
         heat_radiation = tmp1 / tmp2
         
@@ -472,11 +468,12 @@ class PoolFire(FireModel):
             AssertionError       - 模型参数空值断言异常。
         """   
         assert theta > 0, self.assert_info('theta')
-        assert not (gc is None) or not (x is None), self.assert_info('x and pgis both')
+        assert (gc is not None) or (x is not None), self.assert_info('x and pgis both')
 
         if x is None:
             x = utils.calc_geographical_distance(self.get_environment_params()['center_gc'], gc)
-        else: assert x >= 0, self.assert_info('x')
+        else:
+            assert x >= 0, self.assert_info('x')
 
         x = x + 1e-8
         
@@ -515,8 +512,7 @@ class PoolFire(FireModel):
         
         return radius
         
-    def fit(self, border_gcs=None, grid_gcs=None, interval=100, eta=0.24, 
-            theta=1.0, hst_level=None):
+    def fit(self, border_gcs=None, grid_gcs=None, interval=100, eta=0.24, theta=1.0, hst_level=None):
         """
         方法用于拟合发生池火灾时给定矩形区域内的热辐射强度分布或危险系数分布。
 
@@ -543,15 +539,14 @@ class PoolFire(FireModel):
             经纬度时，方法会自动对区域进行网格化。
             interval 参数的值越小则网格点越密集，结果越精确，但计算代价也越高。
         """
-        assert not (border_gcs is None) or not (grid_gcs is None), \
-                self.assert_info('border_gcs and grid_gcs both')
-        if not ( hst_level is None): assert hst_level > 0, self.assert_info('hst_level')
+        assert (border_gcs is not None) or (grid_gcs is not None), self.assert_info('border_gcs and grid_gcs both')
+        if not (hst_level is None):
+            assert hst_level > 0, self.assert_info('hst_level')
 
         if grid_gcs is None:
             grid_gcs = utils.area_gridding(border_gcs, interval)
 
-        hrs = map(lambda x: self.calc_heat_radiation_strength(gc=x, eta=eta, 
-            theta=theta, cache=False), grid_gcs)
+        hrs = map(lambda x: self.calc_heat_radiation_strength(gc=x, eta=eta, theta=theta, cache=False), grid_gcs)
         hrs = list(hrs)
         
         if hst_level:
@@ -609,10 +604,9 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         """
         if (not mat_params.index.is_unique) or (not env_params.index.is_unique):
             raise KeyError('model parameter is not unique.')
-        super().__init__(material=material, mat_params=mat_params, env_params=env_params)
 
-        self._nan_params = pd.concat([mat_params[mat_params.isnull()], 
-                                      env_params[env_params.isnull()]], sort=False)
+        super().__init__(material=material, mat_params=mat_params, env_params=env_params)
+        self._nan_params = pd.concat([mat_params[mat_params.isnull()], env_params[env_params.isnull()]], sort=False)
         
     def calc_source_strength(self):
         """
@@ -695,7 +689,7 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         a3 = -0.5 * math.pow((ddis - srch) / sigma_z, 2)
         a4 = -0.5 * math.pow((ddis + srch) / sigma_z, 2)
         
-        if ((0 == srch) or (0 == ddis)) and (0 != vdis): 
+        if ((0 == srch) or (0 == ddis)) and (0 != vdis):
             concentration = a1 * math.exp(a2 + a4)
         elif (0 == vdis) and (0 == ddis) and (0 != srch):
             concentration = a1 * math.exp(a4)
@@ -704,9 +698,10 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         else:
             concentration = 0.5 * a1 * (math.exp(a2 + a3) + math.exp(a2 + a4))
         
-        if concentration < 1e-8: concentration = 0.0
-        if keep:self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), 
-                                    concentration)
+        if concentration < 1e-8:
+            concentration = 0.0
+        if keep:
+            self._add_result('concentration({}, {}, {}, {})'.format(hdis, vdis, ddis, srch), concentration)
         
         return concentration
         
@@ -744,13 +739,12 @@ class PointSourceGasDiffusion(GasDiffusionModel):
         wind_speed = env_params['wind_speed']
         assert wind_speed > 0.0, self.assert_info('wind_speed')
         hdis_max = math.ceil(wind_speed * t)
-        assert hdis_max > step and step > 0, self.assert_info(step)
+        assert hdis_max > step > 0, self.assert_info(step)
         
         num = hdis_max // step
         hdises = np.linspace(0, hdis_max, num + 1)
         points = pd.Series(hdises, index=hdises)
-        concentrations = points.apply(lambda x: self.calc_concentration(hdis=x, ddis=ddis,\
-                                                            srch=srch, keep=False))
+        concentrations = points.apply(lambda x: self.calc_concentration(hdis=x, ddis=ddis, srch=srch, keep=False))
         xm = concentrations.idxmax()
         cm = concentrations[xm]
         
@@ -785,21 +779,19 @@ class PointSourceGasDiffusion(GasDiffusionModel):
     def get_necessary_mat_params():
         tmp1 = GasDiffusionModel.get_necessary_mat_params()
         tmp2 = PointSourceGasDiffusion._MAT_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates() 
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
     
     @staticmethod
     def get_necessary_env_params():
         tmp1 = GasDiffusionModel.get_necessary_env_params()
         tmp2 = PointSourceGasDiffusion._ENV_NE_PARAMS.copy()
-        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates() 
+        return pd.concat([tmp1, tmp2], ignore_index=True).drop_duplicates()
         
     def get_info(self):
-        return super().get_info(title='point source gas diffusion model reports', width=80,\
-                v_width=40)
+        return super().get_info(title='point source gas diffusion model reports', width=80, v_width=40)
         
         
 def module_test():
-    import pandas as pd
     from pprint import pprint
     gas_mat_params = pd.Series({'material_density': 0.79 * 1e3,
                                 'combustion_heat': 45980})
@@ -808,7 +800,7 @@ def module_test():
                                 'material_weight': 23700,
                                 'center_gc': [121.065, 30.575]})
     
-    gas = VaporCloudExplosion('gasline',mat_params=gas_mat_params, env_params=gas_env_params)
+    gas = VaporCloudExplosion('gasline', mat_params=gas_mat_params, env_params=gas_env_params)
     gas.calc_wave_radius(0.1)
 
     points = [[121.03, 30.5], [121.03, 30.65], [121.10, 30.5], [121.10, 30.65]]
@@ -844,6 +836,7 @@ def module_test():
     h2 = PointSourceGasDiffusion('H2', env_params=env_params)
     res = h2.calc_distribution([30], 360, srch=5, step=10)
     print(h2.get_info())
-    
+
+
 if '__main__' == __name__: 
     module_test()
